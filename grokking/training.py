@@ -13,7 +13,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(project="grokking", mode=mode, config=args)
+    wandb.init(entity='jonathanxue', project="grokking", mode=mode, config=args)
     config = wandb.config
     device = torch.device(config.device)
 
