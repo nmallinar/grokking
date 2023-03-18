@@ -1,3 +1,4 @@
+import os
 from math import ceil
 import torch
 from tqdm import tqdm
@@ -6,8 +7,13 @@ import wandb
 from data import get_data
 from model import Transformer
 
+
 def main(args: dict):
-    wandb.init(project="grokking", config=args)
+    if args.wandb_offline:
+        mode = 'offline'
+    else:
+        mode = 'online'
+    wandb.init(project="grokking", mode=mode, config=args)
     config = wandb.config
     device = torch.device(config.device)
 
