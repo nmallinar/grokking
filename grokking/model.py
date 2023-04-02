@@ -2,6 +2,24 @@ from einops import rearrange, repeat
 import torch
 from torch import nn, Tensor
 
+class FCN(torch.nn.Module):
+  def __init__(self, dim_model: int, num_tokens: int):
+    super().__init__()
+
+    self.token_embeddings = nn.Embedding(num_tokens, dim_model)
+    self.out = nn.Linear(dim_model, num_tokens)
+
+
+
+  def forward(self, x: Tensor):
+    batch_size, context_len = x.shape
+
+    token_embedding = self.token_embeddings(x) 
+    token_embedding = token_embedding.view(batch_size, -1)
+    return self.out(token_embedding)
+
+
+
 class DecoderBlock(torch.nn.Module):
   def __init__(self, dim_model: int, n_heads: int):
     super().__init__()
