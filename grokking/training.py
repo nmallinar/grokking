@@ -5,7 +5,7 @@ from tqdm import tqdm
 import wandb
 
 from data import get_data
-from model import Transformer
+from model import Transformer, FCN
 
 
 def main(args: dict):
@@ -13,7 +13,11 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='jonathanxue', project="grokking", mode=mode, config=args)
+    wandb.init(entity='jonathanxue', project="grokking-neil-verify", mode=mode, config=args)
+    # TODO: add wandb name
+    wandb.run.name = f'lr={args.learning_rate}'
+    wandb.run.save()
+
     config = wandb.config
     device = torch.device(config.device)
 
@@ -27,19 +31,32 @@ def main(args: dict):
     wandb.define_metric("validation/accuracy", step_metric='epoch')
     wandb.define_metric("validation/loss", step_metric='epoch')
 
-    train_loader, val_loader = get_data(
+    train_loader, val_loader, context_len = get_data(
         config.operation,
         config.prime,
         config.training_fraction,
         config.batch_size
         )
-    model = Transformer(
-        num_layers=config.num_layers,
-        dim_model=config.dim_model,
-        num_heads=config.num_heads,
-        num_tokens=config.prime + 2,
-        seq_len=5
-        ).to(device)
+
+    if config.model == 'transformer':
+        model = Transformer(
+            num_layers=config.num_layers,
+            dim_model=config.dim_model,
+            num_heads=config.num_heads,
+            num_tokens=config.prime + 2,
+            seq_len=5
+            ).to(device)
+    elif config.model == 'fcn':
+        model = FCN(
+            dim_model=config.dim_model,
+            num_tokens=config.prime + 2,
+            num_layers=config.num_layers,
+            hidden_width=config.fcn_hidden_width,
+            context_len=context_len
+        )
+    print("======= MODEL DEFINITION =======")
+    print(model)
+
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config.learning_rate,
@@ -72,12 +89,12 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps):
 
         # Zero gradient buffers
         optimizer.zero_grad()
-        
+
         # Forward pass
-        output = model(inputs)[-1,:,:]
+        output = model(inputs)
         loss = criterion(output, labels)
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
-        
+
         # Backward pass
         loss.backward()
 
@@ -106,19 +123,19 @@ def evaluate(model, val_loader, device, epoch):
 
     # Loop over each batch from the validation set
     for batch in val_loader:
-        
+
         # Copy data to device if needed
         batch = tuple(t.to(device) for t in batch)
 
         # Unpack the batch from the loader
         inputs, labels = batch
-        
+
         # Forward pass
         with torch.no_grad():
-            output = model(inputs)[-1,:,:]
+            output = model(inputs)
             correct += (torch.argmax(output, dim=1) == labels).sum()
             loss += criterion(output, labels) * len(labels)
-    
+
     acc = correct / len(val_loader.dataset)
     loss = loss / len(val_loader.dataset)
 

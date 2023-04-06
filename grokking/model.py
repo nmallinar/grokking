@@ -3,22 +3,30 @@ import torch
 from torch import nn, Tensor
 
 class FCN(torch.nn.Module):
-  def __init__(self, dim_model: int, num_tokens: int):
+  def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
     super().__init__()
 
     self.token_embeddings = nn.Embedding(num_tokens, dim_model)
-    self.out = nn.Linear(dim_model, num_tokens)
+    layers = []
 
+    if num_layers > 1:
+        layers.append(nn.Linear(dim_model*context_len, hidden_width))
+        layers.append(nn.ReLU())
+        for _ in range(num_layers-1):
+            layers.append(nn.Linear(hidden_width, hidden_width))
+            layers.append(nn.ReLU())
+        layers.append(nn.Linear(hidden_width, num_tokens))
+    else:
+        layers.append(nn.Linear(dim_model*context_len, num_tokens))
 
+    self.layers = nn.Sequential(*layers)
 
   def forward(self, x: Tensor):
     batch_size, context_len = x.shape
 
-    token_embedding = self.token_embeddings(x) 
+    token_embedding = self.token_embeddings(x)
     token_embedding = token_embedding.view(batch_size, -1)
-    return self.out(token_embedding)
-
-
+    return self.layers(token_embedding)
 
 class DecoderBlock(torch.nn.Module):
   def __init__(self, dim_model: int, n_heads: int):
@@ -38,7 +46,7 @@ class DecoderBlock(torch.nn.Module):
         (len(x), len(x)), -float("Inf"), device=x.device, dtype=x.dtype
     )
     attn_mask = torch.triu(attn_mask, diagonal=1)
-    
+
     a1, _ = self.self_attn(x, x, x, attn_mask=attn_mask)
     a1 = self.self_attn_norm (x + a1)
     a2 = self.ffn(a1)
@@ -70,4 +78,5 @@ class Transformer(torch.nn.Module):
 
     embedding = rearrange(embedding, 'b s d -> s b d')
 
-    return self.model(embedding)
+    out = self.model(embedding)
+    return out[-1, :, :]
