@@ -19,6 +19,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--model", type=str, default='fcn', choices={'fcn', 'transformer'})
     parser.add_argument("--fcn_hidden_width", type=int, default=512)
+    # parser.add_argument("--loss", type=str, default='cross_entropy', choices={'cross_entropy', 'mse'})
     args = parser.parse_args()
 
     main(args)

@@ -13,7 +13,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='jonathanxue', project="grokking-neil-verify", mode=mode, config=args)
+    wandb.init(entity='jonathanxue', project="fcn x divide y", mode=mode, config=args)
     # TODO: add wandb name
     wandb.run.name = f'lr={args.learning_rate}'
     wandb.run.save()
