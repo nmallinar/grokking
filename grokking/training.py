@@ -1,4 +1,5 @@
 import os
+import sys
 from math import ceil
 import torch
 from tqdm import tqdm
@@ -6,7 +7,7 @@ import wandb
 
 from data import get_data
 from model import Transformer, FCN
-
+from rfm import main as rfm_main
 
 def main(args: dict):
     if args.wandb_offline:
@@ -54,6 +55,10 @@ def main(args: dict):
             hidden_width=config.fcn_hidden_width,
             context_len=context_len
         )
+    elif config.model == 'rfm':
+        rfm_main(config.prime + 2, config.dim_model, train_loader, val_loader)
+        sys.exit(0)
+
     print("======= MODEL DEFINITION =======")
     print(model)
 

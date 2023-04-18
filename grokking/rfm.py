@@ -1,11 +1,19 @@
-from data import get_data
+# from data import get_data_rfm
 import numpy as np
 import torch
 from numpy.linalg import solve
 import classic_kernel
 from tqdm import tqdm
+from torch import nn
+import torch.nn.functional as F
 #import hickle
 
+def main(num_tokens, dim_model, train_loader, test_loader):
+    embedding_layer = nn.Embedding(num_tokens, dim_model).requires_grad_(False)
+
+    rfm(train_loader, test_loader, embedding_layer, num_tokens,
+            iters=1000, name=None, batch_size=2, reg=1e-3,
+            train_acc=True)
 
 def laplace_kernel_M(pair1, pair2, bandwidth, M):
     return classic_kernel.laplacian_M(pair1, pair2, bandwidth, M)
@@ -62,26 +70,28 @@ def get_grads(X, sol, L, P, batch_size=2):
     bs = batch_size
     batches = torch.split(G, bs)
     for i in tqdm(range(len(batches))):
-        grad = batches[i].cuda()
+        # grad = batches[i].cuda()
+        grad = batches[i]
         gradT = torch.transpose(grad, 1, 2)
         M += torch.sum(gradT @ grad, dim=0).cpu()
         del grad, gradT
     torch.cuda.empty_cache()
     M /= len(G)
     M = M.numpy()
+    # M = torch.linalg.cholesky(P+1e-6*torch.eye(P.shape[0]))@M
+    # M = M.numpy()
 
     return M
 
 
-def rfm(train_loader, val_loader, test_loader,
+def rfm(train_loader, test_loader, embedding_layer, num_classes,
         iters=3, name=None, batch_size=2, reg=1e-3,
         train_acc=False):
 
     L = 10
 
-    X_train, y_train = get_data(train_loader)
-    X_val, y_val = get_data(val_loader)
-    X_test, y_test = get_data(test_loader)
+    X_train, y_train = get_data(train_loader, embedding_layer, num_classes)
+    X_test, y_test = get_data(test_loader, embedding_layer, num_classes)
 
     n, d = X_train.shape
 
@@ -109,8 +119,8 @@ def rfm(train_loader, val_loader, test_loader,
         print("Round " + str(i) + " Acc: ", count / len(labels))
 
         M  = get_grads(X_train, sol, L, torch.from_numpy(M), batch_size=batch_size)
-        if name is not None:
-            hickle.dump(M, 'saved_Ms/M_' + name + '_' + str(i) + '.h')
+        # if name is not None:
+        #     hickle.dump(M, 'saved_Ms/M_' + name + '_' + str(i) + '.h')
 
     K_train = laplace_kernel_M(X_train, X_train, L, torch.from_numpy(M)).numpy()
     sol = solve(K_train + reg * np.eye(len(K_train)), y_train).T
@@ -126,11 +136,12 @@ def rfm(train_loader, val_loader, test_loader,
     return mse
 
 
-def get_data(loader):
+def get_data(loader, embedding_layer, num_classes):
     X = []
     y = []
     for idx, batch in enumerate(loader):
         inputs, labels = batch
-        X.append(inputs)
-        y.append(labels)
+        batch_size = inputs.shape[0]
+        X.append(embedding_layer(inputs).view(batch_size, -1))
+        y.append(F.one_hot(labels, num_classes))
     return torch.cat(X, dim=0), torch.cat(y, dim=0)
