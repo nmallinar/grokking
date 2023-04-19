@@ -8,6 +8,7 @@ import wandb
 from data import get_data
 from model import Transformer, FCN
 from rfm import main as rfm_main
+import torch.nn.functional as F
 
 def main(args: dict):
     if args.wandb_offline:
@@ -81,7 +82,11 @@ def main(args: dict):
 def train(model, train_loader, optimizer, scheduler, device, num_steps):
     # Set model to training mode
     model.train()
-    criterion = torch.nn.CrossEntropyLoss()
+    # Change torch.nn.CrossEntropyLoss() to torch.nn.MSELoss() without 
+    criterion = torch.nn.MSELoss()
+    # criterion = torch.nn.CrossEntropyLoss()
+    # if (args.loss == 'mse'):
+    #     criterion = torch.nn.MSELoss()
 
     # Loop over each batch from the training set
     for batch in train_loader:
@@ -97,7 +102,9 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps):
 
         # Forward pass
         output = model(inputs)
-        loss = criterion(output, labels)
+
+        labels_one_hot = F.one_hot(labels, 99).float()
+        loss = criterion(output, labels_one_hot)
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
         # Backward pass
@@ -121,7 +128,11 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps):
 def evaluate(model, val_loader, device, epoch):
     # Set model to evaluation mode
     model.eval()
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = torch.nn.MSELoss()
+    # criterion = torch.nn.CrossEntropyLoss()
+    # if (args.loss == 'mse'):
+    #     criterion = torch.nn.MSELoss()
+    
 
     correct = 0
     loss = 0.
