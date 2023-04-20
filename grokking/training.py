@@ -76,17 +76,17 @@ def main(args: dict):
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     for epoch in tqdm(range(num_epochs)):
-        train(model, train_loader, optimizer, scheduler, device, config.num_steps)
-        evaluate(model, val_loader, device, epoch)
+        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
+        evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
 
-def train(model, train_loader, optimizer, scheduler, device, num_steps):
+def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg):
     # Set model to training mode
     model.train()
-    # Change torch.nn.CrossEntropyLoss() to torch.nn.MSELoss() without 
-    criterion = torch.nn.MSELoss()
-    # criterion = torch.nn.CrossEntropyLoss()
-    # if (args.loss == 'mse'):
-    #     criterion = torch.nn.MSELoss()
+
+    if loss_arg == 'mse':
+        criterion = torch.nn.MSELoss()
+    elif loss_arg == 'cross_entropy':
+        criterion = torch.nn.CrossEntropyLoss()
 
     # Loop over each batch from the training set
     for batch in train_loader:
@@ -103,9 +103,11 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps):
         # Forward pass
         output = model(inputs)
 
-        labels_one_hot = F.one_hot(labels, 99).float()
-        loss = criterion(output, labels_one_hot)
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
+
+        if loss_arg == 'mse':
+            labels = F.one_hot(labels, num_classes).float()
+        loss = criterion(output, labels)
 
         # Backward pass
         loss.backward()
@@ -125,14 +127,14 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps):
         if wandb.run.step == num_steps:
             return
 
-def evaluate(model, val_loader, device, epoch):
+def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
     # Set model to evaluation mode
     model.eval()
-    criterion = torch.nn.MSELoss()
-    # criterion = torch.nn.CrossEntropyLoss()
-    # if (args.loss == 'mse'):
-    #     criterion = torch.nn.MSELoss()
-    
+
+    if loss_arg == 'mse':
+        criterion = torch.nn.MSELoss()
+    elif loss_arg == 'cross_entropy':
+        criterion = torch.nn.CrossEntropyLoss()
 
     correct = 0
     loss = 0.
@@ -150,6 +152,10 @@ def evaluate(model, val_loader, device, epoch):
         with torch.no_grad():
             output = model(inputs)
             correct += (torch.argmax(output, dim=1) == labels).sum()
+
+            if loss_arg == 'mse':
+                labels = F.one_hot(labels, num_classes).float()
+
             loss += criterion(output, labels) * len(labels)
 
     acc = correct / len(val_loader.dataset)
