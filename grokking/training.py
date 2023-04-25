@@ -15,10 +15,10 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='jonathanxue', project="fcn x divide y", mode=mode, config=args)
+    wandb.init(entity='jonathanxue', project="neil rfm test", mode=mode, config=args)
     # TODO: add wandb name
-    wandb.run.name = f'lr={args.learning_rate}'
-    wandb.run.save()
+    # wandb.run.name = f'lr={args.learning_rate}'
+    # wandb.run.save()
 
     config = wandb.config
     device = torch.device(config.device)
@@ -57,7 +57,9 @@ def main(args: dict):
             context_len=context_len
         )
     elif config.model == 'rfm':
-        rfm_main(config.prime + 2, config.dim_model, train_loader, val_loader)
+        rfm_main(config.prime + 2, config.dim_model,
+                 train_loader, val_loader,
+                 wandb, config.kernel_bandwidth)
         sys.exit(0)
 
     print("======= MODEL DEFINITION =======")

@@ -90,7 +90,19 @@ def laplacian(samples, centers, bandwidth):
     kernel_mat.exp_()
     return kernel_mat
 
+def gaussian_M(samples, centers, bandwidth, M):
+    assert bandwidth > 0
+    kernel_mat = euclidean_distances_M(samples, centers, M, squared=True)
+    kernel_mat.clamp_(min=0)
+    gamma = 1. / (2 * bandwidth ** 2)
+    kernel_mat.mul_(-gamma)
+    kernel_mat.exp_()
+    return kernel_mat
 
+def gaussian_M_grad1(samples, centers, bandwidth, M):
+    assert bandwidth > 0
+    kernel_mat = gaussian_M(samples, centers, M, bandwidth)
+    return -kernel_mat/bandwidth**2
 
 def laplacian_M(samples, centers, bandwidth, M):
     assert bandwidth > 0
@@ -101,6 +113,15 @@ def laplacian_M(samples, centers, bandwidth, M):
     kernel_mat.exp_()
     return kernel_mat
 
+def laplacian_M_grad1(samples, centers, bandwidth, M):
+    assert bandwidth > 0
+    kernel_mat = laplacian_M(samples, centers, M, bandwidth)
+    dist = euclidean_distances_M(samples, centers, M, squared=False)
+    dist = torch.where(dist < 1e-10, torch.zeros(1).float().to(dist.device), dist)
+
+    kernel_mat = kernel_mat/dist
+    kernel_mat[kernel_mat == float("Inf")] = 0.
+    return -kernel_mat/bandwidth
 
 def dispersal(samples, centers, bandwidth, gamma):
     '''Dispersal kernel.
