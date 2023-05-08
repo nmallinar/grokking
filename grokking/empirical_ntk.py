@@ -6,18 +6,20 @@ def get_eNTK_batched(model, dataloader, num_classes, device, batch_size, val_loa
     params = dict(model.named_parameters())
 
     n_samps = len(dataloader.dataset)
-    ntk = torch.zeros((n_samps*num_classes,
-                       n_samps*num_classes))
-
     if val_loader is None:
         val_loader = dataloader
+    n_val_samps = len(val_loader.dataset)
+
+    ntk = torch.zeros((n_samps*num_classes,
+                       n_val_samps*num_classes))
 
     for batch_idx_i, (batchXi, batchYi) in enumerate(dataloader):
         i_len = batchXi.shape[0]
         for batch_idx_j, (batchXj, batchYj) in enumerate(val_loader):
             j_len = batchXj.shape[0]
 
-            if batch_idx_j >= batch_idx_i:
+            #if batch_idx_j >= batch_idx_i:
+            if True:
                 batchXi = batchXi.to(device)
                 batchXj = batchXj.to(device)
 
@@ -38,7 +40,7 @@ def get_eNTK_batched(model, dataloader, num_classes, device, batch_size, val_loa
 
                 if j_len < batch_size:
                     lower_j = batch_idx_j*batch_size*num_classes
-                    upper_j = n_samps*num_classes
+                    upper_j = n_val_samps*num_classes
                 else:
                     lower_j = batch_idx_j*batch_ntk_j
                     upper_j = (batch_idx_j+1)*batch_ntk_j
@@ -46,9 +48,9 @@ def get_eNTK_batched(model, dataloader, num_classes, device, batch_size, val_loa
                 ntk[lower_i:upper_i, lower_j:upper_j] = batch_ntk
 
     # extract upper triangular portion of ntk
-    ntk_triu = torch.triu(ntk)
+    #ntk_triu = torch.triu(ntk)
     # replicate to lower portion and subtract off diagonal for double counting
-    ntk = ntk_triu + ntk_triu.T - ntk_triu*torch.eye(ntk_triu.shape[0])
+    #ntk = ntk_triu + ntk_triu.T - ntk_triu*torch.eye(ntk_triu.shape[0])
 
     return ntk
 
