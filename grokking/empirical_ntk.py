@@ -18,7 +18,8 @@ def get_eNTK_batched(model, dataloader, num_classes, device, batch_size, val_loa
         for batch_idx_j, (batchXj, batchYj) in enumerate(val_loader):
             j_len = batchXj.shape[0]
 
-            #if batch_idx_j >= batch_idx_i:
+            # if batch_idx_j >= batch_idx_i:
+            # only train-kernel is symmetric, small enough problem that we don't need to do this now
             if True:
                 batchXi = batchXi.to(device)
                 batchXj = batchXj.to(device)

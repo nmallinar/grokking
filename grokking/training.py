@@ -60,7 +60,7 @@ def main(args: dict):
             num_layers=config.num_layers,
             hidden_width=config.fcn_hidden_width,
             context_len=context_len
-        )
+        ).to(device)
     elif config.model == 'rfm':
         rfm_main(config.prime + 2, config.dim_model,
                  train_loader, val_loader,
@@ -137,10 +137,12 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
 def eval_entk(model, train_loader, val_loader, device, epoch, num_classes, batch_size):
     model.eval()
+    # [n_train*num_classes, n_train*num_classes]
     train_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size)
+
+    # [n_train*num_classes, n_test*num_classes]
     train_test_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size, val_loader=val_loader)
 
-    # ntk = compute_ntk(model, data, num_classes)
     import ipdb; ipdb.set_trace()
 
 
