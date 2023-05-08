@@ -9,8 +9,12 @@ from data import get_data
 from model import Transformer, FCN
 from rfm import main as rfm_main
 import torch.nn.functional as F
+from empirical_ntk import get_eNTK_batched
 
 def main(args: dict):
+    if args.eval_entk and args.model != 'fcn':
+        raise Exception('empirical NTK evaluation only supported for FCN')
+
     if args.wandb_offline:
         mode = 'offline'
     else:
@@ -33,11 +37,12 @@ def main(args: dict):
     wandb.define_metric("validation/accuracy", step_metric='epoch')
     wandb.define_metric("validation/loss", step_metric='epoch')
 
-    train_loader, val_loader, context_len = get_data(
-        config.operation,
-        config.prime,
-        config.training_fraction,
-        config.batch_size
+    train_loader, val_loader, context_len, train_dataset, val_dataset = \
+        get_data(
+            config.operation,
+            config.prime,
+            config.training_fraction,
+            config.batch_size
         )
 
     if config.model == 'transformer':
@@ -78,6 +83,7 @@ def main(args: dict):
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     for epoch in tqdm(range(num_epochs)):
+        eval_entk(model, train_loader, val_loader, device, epoch, config.prime + 2, config.batch_size)
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
 
@@ -128,6 +134,15 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         # Finish training at maximum gradient updates
         if wandb.run.step == num_steps:
             return
+
+def eval_entk(model, train_loader, val_loader, device, epoch, num_classes, batch_size):
+    model.eval()
+    train_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size)
+    train_test_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size, val_loader=val_loader)
+
+    # ntk = compute_ntk(model, data, num_classes)
+    import ipdb; ipdb.set_trace()
+
 
 def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
     # Set model to evaluation mode
