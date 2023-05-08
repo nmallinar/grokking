@@ -137,7 +137,9 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
 def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size):
     model.eval()
-    
+    train_data = train_dataset.dataset[train_dataset.indices]
+    val_data = val_dataset.dataset[val_dataset.indices]
+
     # [n_train*num_classes, n_train*num_classes]
     train_ntk = get_eNTK_batched(model, train_dataset, num_classes, device, batch_size)
 
