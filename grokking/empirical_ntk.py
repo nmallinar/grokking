@@ -14,13 +14,13 @@ def get_eNTK_batched(model, dataset, num_classes, device, batch_size, val_datase
                        n_val_samps*num_classes))
 
     # for batch_idx_i, (batchXi, batchYi) in enumerate(dataset):
-    for batch_idx_i in range(0, n_samps, batch_size):
-        batchXi = dataset[0][batch_idx_i:min(batch_idx_i + batch_size, n_samps)]
+    for batch_idx_i, i in enumerate(range(0, n_samps, batch_size)):
+        batchXi = dataset[0][i:min(i + batch_size, n_samps)]
         i_len = batchXi.shape[0]
 
         # for batch_idx_j, (batchXj, batchYj) in enumerate(val_dataset):
-        for batch_idx_j in range(0, n_val_samps, batch_size):
-            batchXj = val_dataset[0][batch_idx_j:min(batch_idx_j + batch_size, n_val_samps)]
+        for batch_idx_j, j in enumerate(range(0, n_val_samps, batch_size)):
+            batchXj = val_dataset[0][j:min(j + batch_size, n_val_samps)]
             j_len = batchXj.shape[0]
 
             # if batch_idx_j >= batch_idx_i:

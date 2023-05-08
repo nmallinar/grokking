@@ -4,6 +4,7 @@ from math import ceil
 import torch
 from tqdm import tqdm
 import wandb
+import numpy as np
 
 from data import get_data
 from model import Transformer, FCN
@@ -141,13 +142,32 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     val_data = val_dataset.dataset[val_dataset.indices]
 
     # [n_train*num_classes, n_train*num_classes]
-    train_ntk = get_eNTK_batched(model, train_dataset, num_classes, device, batch_size)
+    train_ntk = get_eNTK_batched(model, train_data, num_classes, device, batch_size)
+    train_ntk = train_ntk.numpy()
 
     # [n_train*num_classes, n_test*num_classes]
-    train_test_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size, val_dataset=val_dataset)
+    train_test_ntk = get_eNTK_batched(model, train_data, num_classes, device, batch_size, val_dataset=val_data)
+    train_test_ntk = train_test_ntk.numpy()
+    
+    y_tr = F.one_hot(train_data[1], num_classes=num_classes).reshape(train_data[1].shape[0]*num_classes)
+    alpha = np.linalg.solve(train_ntk, y_tr)
 
-    import ipdb; ipdb.set_trace()
+    # training loss / accuracy first
+    preds = torch.from_numpy(train_ntk.T @ alpha)
+    mse = torch.mean((preds - y_tr)**2)
+    count = torch.argmax(preds.reshape(train_data[1].shape[0], num_classes), dim=1)
+    acc = sum(count == train_data[1]) / float(train_data[1].shape[0])
+    print(f'Train MSE: {mse}, acc: {acc}')
 
+    del y_tr
+    y_te = F.one_hot(val_data[1], num_classes=num_classes)
+    preds = torch.from_numpy(train_test_ntk.T @ alpha).reshape(val_data[1].shape[0], num_classes)
+    mse = torch.mean((preds - y_te)**2)
+    count = torch.argmax(preds, dim=1)
+    acc = sum(count == val_data[1]) / float(val_data[1].shape[0])
+    del y_te
+
+    print(f'Val MSE: {mse}, acc: {acc}')
 
 def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
     # Set model to evaluation mode
