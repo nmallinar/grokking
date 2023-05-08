@@ -2,20 +2,22 @@ from torch import func
 import torch
 import numpy as np
 
-def get_eNTK_batched(model, dataloader, num_classes, device, batch_size, val_loader=None):
+def get_eNTK_batched(model, dataset, num_classes, device, batch_size, val_dataset=None):
     params = dict(model.named_parameters())
 
-    n_samps = len(dataloader.dataset)
-    if val_loader is None:
-        val_loader = dataloader
-    n_val_samps = len(val_loader.dataset)
+    n_samps = len(dataset)
+    if val_dataset is None:
+        val_dataset = dataset
+    n_val_samps = len(val_dataset)
 
     ntk = torch.zeros((n_samps*num_classes,
                        n_val_samps*num_classes))
 
-    for batch_idx_i, (batchXi, batchYi) in enumerate(dataloader):
+    import ipdb; ipdb.set_trace()
+
+    for batch_idx_i, (batchXi, batchYi) in enumerate(dataset):
         i_len = batchXi.shape[0]
-        for batch_idx_j, (batchXj, batchYj) in enumerate(val_loader):
+        for batch_idx_j, (batchXj, batchYj) in enumerate(val_dataset):
             j_len = batchXj.shape[0]
 
             # if batch_idx_j >= batch_idx_i:

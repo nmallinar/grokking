@@ -83,7 +83,7 @@ def main(args: dict):
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     for epoch in tqdm(range(num_epochs)):
-        eval_entk(model, train_loader, val_loader, device, epoch, config.prime + 2, config.batch_size)
+        eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size)
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
 
@@ -135,13 +135,14 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         if wandb.run.step == num_steps:
             return
 
-def eval_entk(model, train_loader, val_loader, device, epoch, num_classes, batch_size):
+def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size):
     model.eval()
+    
     # [n_train*num_classes, n_train*num_classes]
-    train_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size)
+    train_ntk = get_eNTK_batched(model, train_dataset, num_classes, device, batch_size)
 
     # [n_train*num_classes, n_test*num_classes]
-    train_test_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size, val_loader=val_loader)
+    train_test_ntk = get_eNTK_batched(model, train_loader, num_classes, device, batch_size, val_dataset=val_dataset)
 
     import ipdb; ipdb.set_trace()
 
