@@ -21,7 +21,7 @@ if __name__ == "__main__":
     parser.add_argument("--fcn_hidden_width", type=int, default=512)
     parser.add_argument("--loss", type=str, default='mse', choices={'cross_entropy', 'mse'})
     parser.add_argument("--kernel_bandwidth", type=float, default=1.0)
-    parser.add_argument("--eval_entk", action='store_true', default=False)
+    parser.add_argument("--eval_entk", type=int, default=-1)
     args = parser.parse_args()
 
     main(args)

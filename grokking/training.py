@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from empirical_ntk import get_eNTK_batched
 
 def main(args: dict):
-    if args.eval_entk and args.model != 'fcn':
+    if args.eval_entk > 0 and args.model != 'fcn':
         raise Exception('empirical NTK evaluation only supported for FCN')
 
     if args.wandb_offline:
@@ -84,7 +84,8 @@ def main(args: dict):
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     for epoch in tqdm(range(num_epochs)):
-        eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size)
+        if config.eval_entk > 0 and (epoch % config.eval_entk == 0):
+            eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size, epoch)
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
 
@@ -136,7 +137,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         if wandb.run.step == num_steps:
             return
 
-def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size):
+def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size, epoch):
     model.eval()
     train_data = train_dataset.dataset[train_dataset.indices]
     val_data = val_dataset.dataset[val_dataset.indices]
@@ -148,7 +149,7 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     # [n_train*num_classes, n_test*num_classes]
     train_test_ntk = get_eNTK_batched(model, train_data, num_classes, device, batch_size, val_dataset=val_data)
     train_test_ntk = train_test_ntk.numpy()
-    
+
     y_tr = F.one_hot(train_data[1], num_classes=num_classes).reshape(train_data[1].shape[0]*num_classes)
     alpha = np.linalg.solve(train_ntk, y_tr)
 
@@ -159,6 +160,13 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     acc = sum(count == train_data[1]) / float(train_data[1].shape[0])
     print(f'Train MSE: {mse}, acc: {acc}')
 
+    metrics = {
+        "training/entk_accuracy": acc,
+        "training/entk_mse": mse,
+        "epoch": epoch
+    }
+    wandb.log(metrics, commit=False)
+
     del y_tr
     y_te = F.one_hot(val_data[1], num_classes=num_classes)
     preds = torch.from_numpy(train_test_ntk.T @ alpha).reshape(val_data[1].shape[0], num_classes)
@@ -166,6 +174,13 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     count = torch.argmax(preds, dim=1)
     acc = sum(count == val_data[1]) / float(val_data[1].shape[0])
     del y_te
+
+    metrics = {
+        "validation/entk_accuracy": acc,
+        "validation/entk_mse": mse,
+        "epoch": epoch
+    }
+    wandb.log(metrics, commit=False)
 
     print(f'Val MSE: {mse}, acc: {acc}')
 
