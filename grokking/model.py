@@ -7,15 +7,15 @@ class FCN(torch.nn.Module):
     super().__init__()
 
     self.token_embeddings = nn.Embedding(num_tokens, dim_model)
+    self.token_embeddings.requires_grad_(False)
     layers = []
 
     inp_dim = dim_model * context_len
     for idx in range(num_layers-1):
         layers.append(nn.Linear(inp_dim, hidden_width))
-
-        if idx != num_layers - 2:
-            layers.append(nn.ReLU())
+        layers.append(nn.ReLU()) 
         inp_dim = hidden_width
+
     layers.append(nn.Linear(inp_dim, num_tokens))
 
     self.layers = nn.Sequential(*layers)

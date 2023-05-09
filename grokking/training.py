@@ -156,7 +156,7 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     train_test_ntk = train_test_ntk.numpy()
 
     y_tr = F.one_hot(train_data[1], num_classes=num_classes).reshape(train_data[1].shape[0]*num_classes)
-    alpha = scipy.linalg.solve(train_ntk, y_tr, assume_a='pos')
+    alpha = scipy.linalg.solve(train_ntk + 1e-8*np.eye(train_data[1].shape[0]*num_classes), y_tr, assume_a='pos')
 
     # training loss / accuracy first
     preds = torch.from_numpy(train_ntk.T @ alpha)
