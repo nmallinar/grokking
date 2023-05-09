@@ -11,7 +11,7 @@ def main(num_tokens, dim_model, train_loader, test_loader, wandb, L):
     embedding_layer = nn.Embedding(num_tokens, dim_model).requires_grad_(False)
 
     rfm(train_loader, test_loader, embedding_layer, num_tokens, wandb,
-            iters=1000, name=None, batch_size=2, reg=1e-3,
+            iters=1000, name=None, batch_size=2, reg=1e-1,
             train_acc=True, L=L)
 
 def laplace_kernel_M(pair1, pair2, bandwidth, M):
@@ -88,8 +88,9 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
         train_acc=False, L=1):
 
 
-    label_proj = torch.randn(num_classes, num_classes, dtype=torch.double)
+    #label_proj = torch.randn(num_classes, num_classes, dtype=torch.double)
     # label_proj = embedding_layer.weight.double()
+    label_proj = torch.eye(num_classes).double()
     X_train, y_train, true_y_train = get_data(train_loader, embedding_layer, num_classes, label_proj)
     X_test, y_test, true_y_test = get_data(test_loader, embedding_layer, num_classes, label_proj)
     train_mean = X_train.mean(0, keepdim=True)
@@ -98,8 +99,8 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
     X_train /= train_std
     X_test -= train_mean
     X_test /= train_std
-    y_train -= 1.0/num_classes
-    y_test -= 1.0/num_classes
+    #y_train -= 1.0/num_classes
+    #y_test -= 1.0/num_classes
 
     n, d = X_train.shape
 
@@ -107,8 +108,8 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
     # EEt = embedding_layer.weight @ embedding_layer.weight.T
     # labelE = embedding_layer.weight.T @ torch.linalg.pinv(EEt)
     # labelE = label_proj.T @ torch.linalg.pinv(label_proj @ label_proj.T)
-    labelE = np.linalg.pinv(label_proj)
-    # labelE = torch.eye(num_classes).double()
+    #labelE = np.linalg.pinv(label_proj)
+    labelE = torch.eye(num_classes).double()
     # labelE = label_proj.T
     for i in range(iters):
         K_train = laplace_kernel_M(X_train, X_train, L, torch.from_numpy(M)).numpy()
@@ -180,8 +181,8 @@ def get_data(loader, embedding_layer, num_classes, label_proj):
         batch_size = inputs.shape[0]
         inputs = torch.stack((inputs[:,0], inputs[:,2]), dim=1)
         # embedding_layer(inputs): (n, seq_len, d)
-        X.append(torch.mean(embedding_layer(inputs), 1))
-        # X.append(embedding_layer(inputs).view(batch_size, -1))
+        # X.append(torch.mean(embedding_layer(inputs), 1))
+        X.append(embedding_layer(inputs).view(batch_size, -1))
 
         true_y.append(labels)
         # y.append(F.one_hot(labels, num_classes))

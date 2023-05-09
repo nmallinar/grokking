@@ -84,8 +84,12 @@ def main(args: dict):
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     for epoch in tqdm(range(num_epochs)):
-        if config.eval_entk > 0 and (epoch % config.eval_entk == 0):
+        if config.eval_entk > 0 and (
+            (epoch <= 50 and epoch % 5 == 0) or
+            (epoch > 50 and epoch % config.eval_entk == 0)
+        ):
             eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size)
+
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
 
@@ -158,7 +162,8 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     mse = torch.mean((preds - y_tr)**2)
     count = torch.argmax(preds.reshape(train_data[1].shape[0], num_classes), dim=1)
     acc = sum(count == train_data[1]) / float(train_data[1].shape[0])
-    print(f'Train MSE: {mse}, acc: {acc}')
+    # print(f'Train MSE: {mse}, acc: {acc}')
+    del y_tr
 
     metrics = {
         "training/entk_accuracy": acc,
@@ -167,7 +172,6 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     }
     wandb.log(metrics, commit=False)
 
-    del y_tr
     y_te = F.one_hot(val_data[1], num_classes=num_classes)
     preds = torch.from_numpy(train_test_ntk.T @ alpha).reshape(val_data[1].shape[0], num_classes)
     mse = torch.mean((preds - y_te)**2)
@@ -182,7 +186,7 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     }
     wandb.log(metrics, commit=False)
 
-    print(f'Val MSE: {mse}, acc: {acc}')
+    # print(f'Val MSE: {mse}, acc: {acc}')
 
 def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
     # Set model to evaluation mode
