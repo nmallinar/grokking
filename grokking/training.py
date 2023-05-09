@@ -5,6 +5,7 @@ import torch
 from tqdm import tqdm
 import wandb
 import numpy as np
+import scipy
 
 from data import get_data
 from model import Transformer, FCN
@@ -155,7 +156,7 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     train_test_ntk = train_test_ntk.numpy()
 
     y_tr = F.one_hot(train_data[1], num_classes=num_classes).reshape(train_data[1].shape[0]*num_classes)
-    alpha = np.linalg.solve(train_ntk, y_tr)
+    alpha = scipy.linalg.solve(train_ntk, y_tr, assume_a='pos')
 
     # training loss / accuracy first
     preds = torch.from_numpy(train_ntk.T @ alpha)
