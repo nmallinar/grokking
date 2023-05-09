@@ -20,7 +20,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='jonathanxue', project="neil rfm test", mode=mode, config=args)
+    wandb.init(entity='jonathanxue', project="neil empirical NTK", mode=mode, config=args)
     # TODO: add wandb name
     # wandb.run.name = f'lr={args.learning_rate}'
     # wandb.run.save()
@@ -85,7 +85,7 @@ def main(args: dict):
 
     for epoch in tqdm(range(num_epochs)):
         if config.eval_entk > 0 and (epoch % config.eval_entk == 0):
-            eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size, epoch)
+            eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size)
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
 
@@ -137,7 +137,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         if wandb.run.step == num_steps:
             return
 
-def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size, epoch):
+def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size):
     model.eval()
     train_data = train_dataset.dataset[train_dataset.indices]
     val_data = val_dataset.dataset[val_dataset.indices]
