@@ -20,6 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default='fcn', choices={'fcn', 'transformer', 'rfm'})
     parser.add_argument("--fcn_hidden_width", type=int, default=512)
     parser.add_argument("--loss", type=str, default='mse', choices={'cross_entropy', 'mse'})
+    parser.add_argument("--kernel_bandwidth", type=float, default=1.0)
     args = parser.parse_args()
 
     main(args)
