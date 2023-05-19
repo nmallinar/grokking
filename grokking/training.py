@@ -6,13 +6,16 @@ from tqdm import tqdm
 import wandb
 import numpy as np
 import scipy
+import torchvision
 
 from data import get_data
 from model import Transformer, FCN, FCNEmbedded
 from rfm import main as rfm_main
 from rfm_entk import main as rfm_entk_main
 import torch.nn.functional as F
-from empirical_ntk import get_eNTK_batched, get_eNNGP_batched
+from empirical_ntk import get_eNTK_batched
+
+torch.set_default_dtype(torch.float64)
 
 def main(args: dict):
     if args.eval_entk > 0 and args.model != 'fcn':
@@ -96,18 +99,38 @@ def main(args: dict):
 
     num_epochs = ceil(config.num_steps / len(train_loader))
 
+    viz_indices = [0, 1, 2, 3, 4, 5, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     for epoch in tqdm(range(num_epochs)):
-        import ipdb; ipdb.set_trace()
+        if epoch in viz_indices:
+            visual_weights(model, epoch)
+
         if config.eval_entk > 0 and (
             (epoch <= 50 and epoch % 5 == 0) or
             (epoch > 50 and epoch % config.eval_entk == 0)
         ):
-            eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size)
+            viz = False
+            if epoch in viz_indices:
+                viz = True
+            eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size, viz=viz)
             if device == 'cuda':
                 torch.cuda.empty_cache()
 
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
+
+def visual_weights(model, epoch_idx):
+    params = dict(model.named_parameters())
+    # [d, h] weights
+    w0 = params['layers.0.weight']
+    w0w0t = w0 @ w0.T
+    w0w0t = w0w0t.unsqueeze(0).unsqueeze(0)
+    w0w0t = torchvision.utils.make_grid(w0w0t)
+
+    image = wandb.Image(
+        w0w0t,
+        caption=f"Epoch {epoch_idx}, W0 @ W0.T"
+    )
+    wandb.log({"w0_w0.T": image})
 
 def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg):
     # Set model to training mode
@@ -136,7 +159,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
         if loss_arg == 'mse':
-            labels = F.one_hot(labels, num_classes).float()
+            labels = F.one_hot(labels, num_classes).double()
         loss = criterion(output, labels)
 
         # Backward pass
@@ -157,7 +180,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         if wandb.run.step == num_steps:
             return
 
-def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size):
+def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size, viz=False):
     model.eval()
     train_data = train_dataset.dataset[train_dataset.indices]
     val_data = val_dataset.dataset[val_dataset.indices]
@@ -206,6 +229,26 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     }
     wandb.log(metrics, commit=False)
 
+    train_ntk = train_ntk.unsqueeze(0).unsqueeze(0)
+    train_ntk = torchvision.utils.make_grid(train_ntk)
+
+    image = wandb.Image(
+        train_ntk,
+        caption=f"Epoch {epoch_idx}, train entk"
+    )
+    wandb.log({"train entk": image})
+
+    train_test_ntk = train_test_ntk.unsqueeze(0).unsqueeze(0)
+    train_test_ntk = torchvision.utils.make_grid(train_test_ntk)
+
+    image = wandb.Image(
+        train_test_ntk,
+        caption=f"Epoch {epoch_idx}, train-test entk"
+    )
+    wandb.log({"train-test entk": image})
+
+    del train_ntk, train_test_ntk
+
     # print(f'Val MSE: {mse}, acc: {acc}')
 
 def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
@@ -235,7 +278,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
             correct += (torch.argmax(output, dim=1) == labels).sum()
 
             if loss_arg == 'mse':
-                labels = F.one_hot(labels, num_classes).float()
+                labels = F.one_hot(labels, num_classes).double()
 
             loss += criterion(output, labels) * len(labels)
 

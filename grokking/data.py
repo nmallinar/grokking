@@ -1,6 +1,8 @@
 from math import ceil
 import torch
 
+torch.set_default_dtype(torch.float64)
+
 DIVISION_MODULO_OPERATIONS = {
     "x/y": lambda x, y, p: (x*y % p, y, x),
     "(x//y)if(y%2==1)else(x-y)": lambda x, y, _: torch.where(y % 2 == 1, x // y, x - y)

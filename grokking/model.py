@@ -34,11 +34,11 @@ class FCN(torch.nn.Module):
 
     inp_dim = dim_model * context_len
     for idx in range(num_layers-1):
-        layers.append(nn.Linear(inp_dim, hidden_width))
+        layers.append(nn.Linear(inp_dim, hidden_width, bias=False))
         layers.append(nn.ReLU())
         inp_dim = hidden_width
 
-    layers.append(nn.Linear(inp_dim, num_tokens))
+    layers.append(nn.Linear(inp_dim, num_tokens, bias=False))
 
     self.layers = nn.Sequential(*layers)
 
