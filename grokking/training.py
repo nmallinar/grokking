@@ -8,10 +8,11 @@ import numpy as np
 import scipy
 
 from data import get_data
-from model import Transformer, FCN
+from model import Transformer, FCN, FCNEmbedded
 from rfm import main as rfm_main
+from rfm_entk import main as rfm_entk_main
 import torch.nn.functional as F
-from empirical_ntk import get_eNTK_batched
+from empirical_ntk import get_eNTK_batched, get_eNNGP_batched
 
 def main(args: dict):
     if args.eval_entk > 0 and args.model != 'fcn':
@@ -68,6 +69,17 @@ def main(args: dict):
                  train_loader, val_loader,
                  wandb, config.kernel_bandwidth)
         sys.exit(0)
+    elif config.model == 'rfm_fcn':
+        model = FCNEmbedded(
+            dim_model=config.dim_model,
+            num_tokens=config.prime + 2,
+            num_layers=config.num_layers,
+            hidden_width=config.fcn_hidden_width,
+            context_len=context_len
+        ).to(device)
+        rfm_entk_main(model, config.prime + 2, config.dim_model,
+                      train_loader, val_loader, wandb, config.device)
+        sys.exit(0)
 
     print("======= MODEL DEFINITION =======")
     print(model)
@@ -85,11 +97,14 @@ def main(args: dict):
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     for epoch in tqdm(range(num_epochs)):
+        import ipdb; ipdb.set_trace()
         if config.eval_entk > 0 and (
             (epoch <= 50 and epoch % 5 == 0) or
             (epoch > 50 and epoch % config.eval_entk == 0)
         ):
             eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size)
+            if device == 'cuda':
+                torch.cuda.empty_cache()
 
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
@@ -147,6 +162,10 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     train_data = train_dataset.dataset[train_dataset.indices]
     val_data = val_dataset.dataset[val_dataset.indices]
 
+    n_train = train_data[1].shape[0]
+    n_ctrain = n_train * num_classes
+    n_val = val_data[1].shape[0]
+
     # [n_train*num_classes, n_train*num_classes]
     train_ntk = get_eNTK_batched(model, train_data, num_classes, device, batch_size)
     train_ntk = train_ntk.numpy()
@@ -155,14 +174,14 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     train_test_ntk = get_eNTK_batched(model, train_data, num_classes, device, batch_size, val_dataset=val_data)
     train_test_ntk = train_test_ntk.numpy()
 
-    y_tr = F.one_hot(train_data[1], num_classes=num_classes).reshape(train_data[1].shape[0]*num_classes)
-    alpha = scipy.linalg.solve(train_ntk + 1e-8*np.eye(train_data[1].shape[0]*num_classes), y_tr, assume_a='pos')
+    y_tr = F.one_hot(train_data[1], num_classes=num_classes).reshape(n_ctrain)
+    alpha = scipy.linalg.solve(train_ntk + 1e-8*np.eye(n_ctrain), y_tr, assume_a='pos')
 
     # training loss / accuracy first
     preds = torch.from_numpy(train_ntk.T @ alpha)
     mse = torch.mean((preds - y_tr)**2)
-    count = torch.argmax(preds.reshape(train_data[1].shape[0], num_classes), dim=1)
-    acc = sum(count == train_data[1]) / float(train_data[1].shape[0])
+    count = torch.argmax(preds.reshape(n_train, num_classes), dim=1)
+    acc = sum(count == train_data[1]) / float(n_train)
     # print(f'Train MSE: {mse}, acc: {acc}')
     del y_tr
 
@@ -174,10 +193,10 @@ def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, bat
     wandb.log(metrics, commit=False)
 
     y_te = F.one_hot(val_data[1], num_classes=num_classes)
-    preds = torch.from_numpy(train_test_ntk.T @ alpha).reshape(val_data[1].shape[0], num_classes)
+    preds = torch.from_numpy(train_test_ntk.T @ alpha).reshape(n_val, num_classes)
     mse = torch.mean((preds - y_te)**2)
     count = torch.argmax(preds, dim=1)
-    acc = sum(count == val_data[1]) / float(val_data[1].shape[0])
+    acc = sum(count == val_data[1]) / float(n_val)
     del y_te
 
     metrics = {

@@ -2,18 +2,18 @@ from einops import rearrange, repeat
 import torch
 from torch import nn, Tensor
 
-class FCN(torch.nn.Module):
+torch.set_default_dtype(torch.float64)
+
+class FCNEmbedded(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
     super().__init__()
 
-    self.token_embeddings = nn.Embedding(num_tokens, dim_model)
-    self.token_embeddings.requires_grad_(False)
+    self.num_tokens = num_tokens
     layers = []
-
     inp_dim = dim_model * context_len
     for idx in range(num_layers-1):
         layers.append(nn.Linear(inp_dim, hidden_width))
-        layers.append(nn.ReLU()) 
+        layers.append(nn.ReLU())
         inp_dim = hidden_width
 
     layers.append(nn.Linear(inp_dim, num_tokens))
@@ -21,7 +21,29 @@ class FCN(torch.nn.Module):
     self.layers = nn.Sequential(*layers)
 
   def forward(self, x: Tensor):
-    batch_size, context_len = x.shape
+    return self.layers(x)
+
+class FCN(torch.nn.Module):
+  def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
+    super().__init__()
+
+    self.num_tokens = num_tokens
+    self.token_embeddings = nn.Embedding(num_tokens, dim_model)
+    self.token_embeddings.requires_grad_(False)
+    layers = []
+
+    inp_dim = dim_model * context_len
+    for idx in range(num_layers-1):
+        layers.append(nn.Linear(inp_dim, hidden_width))
+        layers.append(nn.ReLU())
+        inp_dim = hidden_width
+
+    layers.append(nn.Linear(inp_dim, num_tokens))
+
+    self.layers = nn.Sequential(*layers)
+
+  def forward(self, x: Tensor):
+    batch_size = x.shape[0]
 
     token_embedding = self.token_embeddings(x)
     token_embedding = token_embedding.view(batch_size, -1)

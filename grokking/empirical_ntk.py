@@ -2,6 +2,8 @@ from torch import func
 import torch
 import numpy as np
 
+torch.set_default_dtype(torch.float64)
+
 def get_eNTK_batched(model, dataset, num_classes, device, batch_size, val_dataset=None):
     params = dict(model.named_parameters())
 
@@ -79,6 +81,48 @@ def get_eNTK(model, params, x1, x2):
     result = torch.stack([torch.einsum('Naf,Mbf->NMab', j1, j2) for j1, j2 in zip(jac1, jac2)])
     result = result.sum(0)
     return result.cpu()
+
+def get_eNTK_grad(model, x1, x2, num_classes):
+    params = dict(model.named_parameters())
+
+    x1.requires_grad_(True)
+
+    def f(params, inputs):
+        return func.functional_call(model, params, (inputs,))
+
+    n, d = x1.shape
+
+    jac1 = func.jacrev(f)(params, x1)
+    # jac1 = func.vmap(func.jacrev(f_single), (None, 0))(params, x1)
+    jac1 = [jac1[j].flatten(2) for j in jac1.keys()]
+    # jac dims:
+    # jac1[0]: (n, classes, p) where p is num parameters in that layer
+    # torch.autograd.grad(jac1[0][i][j][k], x1)[0].shape == (n, d)
+    jac_grad_1 = [torch.zeros(n, num_classes, j.shape[-1], d) for j in jac1]
+    for idx, jac in enumerate(jac1):
+        for sample_idx in range(x1.shape[0]):
+            for class_idx in range(num_classes):
+                for param_idx in range(jac.shape[-1]):
+                    grad = torch.autograd.grad(
+                        jac1[idx][sample_idx][class_idx][param_idx],
+                        x1, retain_graph = True
+                    )[0]
+                    jac_grad_1[idx][sample_idx][class_idx][param_idx] = grad[sample_idx]
+    # jac_grad_1 elements have shape:
+    # (n, c, p, d)
+    del jac1
+
+    jac2 = func.jacrev(f)(params, x2)
+    # jac2 = func.vmap(func.jacrev(f_single), (None, 0))(params, x2)
+    jac2 = [jac2[j].flatten(2) for j in jac2.keys()]
+    # jac2 elements have shape:
+    # (n, c, p)
+
+    # einsum: 'ncpd,ncp->d'
+    grad = torch.stack([torch.einsum('ncpd,ncp->d', j1, j2) for j1, j2 in zip(jac_grad_1, jac2)])
+    import ipdb; ipdb.set_trace()
+    grad = grad.sum(0)
+    return grad.cpu()
 
 def compute_ntk(model, X, n_classes):
     n_samps = 10
