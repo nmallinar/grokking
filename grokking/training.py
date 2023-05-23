@@ -8,6 +8,7 @@ import wandb
 from data import get_data
 from model import Transformer, FCN
 from rfm import main as rfm_main
+import matplotlib.pyplot as plt
 import torch.nn.functional as F
 
 def main(args: dict):
@@ -65,6 +66,7 @@ def main(args: dict):
     print("======= MODEL DEFINITION =======")
     print(model)
 
+    # Optimizer
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config.learning_rate,
@@ -74,6 +76,17 @@ def main(args: dict):
     scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor = 0.1, total_iters=9
     )
+    # Additional information
+    EPOCH = 5
+    PATH = "model.pt"
+    LOSS = 0.4
+
+    torch.save({
+                'epoch': EPOCH,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': LOSS,
+                }, PATH)
 
     num_epochs = ceil(config.num_steps / len(train_loader))
 
