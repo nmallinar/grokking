@@ -8,6 +8,7 @@ import torch.nn.functional as F
 #import hickle
 
 def main(num_tokens, dim_model, train_loader, test_loader, wandb, L):
+    # replace with token embeddings
     embedding_layer = nn.Embedding(num_tokens, dim_model).requires_grad_(False)
 
     rfm(train_loader, test_loader, embedding_layer, num_tokens, wandb,
@@ -178,10 +179,10 @@ def get_data(loader, embedding_layer, num_classes, label_proj):
     for idx, batch in enumerate(loader):
         inputs, labels = batch
         batch_size = inputs.shape[0]
-        inputs = torch.stack((inputs[:,0], inputs[:,2]), dim=1)
+        # inputs = torch.stack((inputs[:,0], inputs[:,2]), dim=1)
         # embedding_layer(inputs): (n, seq_len, d)
-        X.append(torch.mean(embedding_layer(inputs), 1))
-        # X.append(embedding_layer(inputs).view(batch_size, -1))
+        # X.append(torch.mean(embedding_layer(inputs), 1))
+        X.append(embedding_layer(inputs).view(batch_size, -1))
 
         true_y.append(labels)
         # y.append(F.one_hot(labels, num_classes))

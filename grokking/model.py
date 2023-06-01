@@ -6,20 +6,37 @@ class FCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
     super().__init__()
 
+    self.num_tokens = num_tokens
     self.token_embeddings = nn.Embedding(num_tokens, dim_model)
+    self.token_embeddings.requires_grad_(False)
     layers = []
 
-    if num_layers > 1:
-        layers.append(nn.Linear(dim_model*context_len, hidden_width))
+    inp_dim = dim_model * context_len
+    for idx in range(num_layers-1):
+        layers.append(nn.Linear(inp_dim, hidden_width, bias=False))
         layers.append(nn.ReLU())
-        for _ in range(num_layers-1):
-            layers.append(nn.Linear(hidden_width, hidden_width))
-            layers.append(nn.ReLU())
-        layers.append(nn.Linear(hidden_width, num_tokens))
-    else:
-        layers.append(nn.Linear(dim_model*context_len, num_tokens))
+        inp_dim = hidden_width
+
+    layers.append(nn.Linear(inp_dim, num_tokens, bias=False))
 
     self.layers = nn.Sequential(*layers)
+  # def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
+  #   super().__init__()
+
+  #   self.token_embeddings = nn.Embedding(num_tokens, dim_model)
+  #   layers = []
+
+  #   if num_layers > 1:
+  #       layers.append(nn.Linear(dim_model*context_len, hidden_width))
+  #       layers.append(nn.ReLU())
+  #       for _ in range(num_layers-1):
+  #           layers.append(nn.Linear(hidden_width, hidden_width))
+  #           layers.append(nn.ReLU())
+  #       layers.append(nn.Linear(hidden_width, num_tokens))
+  #   else:
+  #       layers.append(nn.Linear(dim_model*context_len, num_tokens))
+
+  #   self.layers = nn.Sequential(*layers)
 
   def forward(self, x: Tensor):
     batch_size, context_len = x.shape

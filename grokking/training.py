@@ -16,7 +16,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='jonathanxue', project="neil rfm test", mode=mode, config=args)
+    wandb.init(entity='jonathanxue', project="x+y", mode=mode, config=args)
     # TODO: add wandb name
     # wandb.run.name = f'lr={args.learning_rate}'
     # wandb.run.save()
@@ -76,23 +76,19 @@ def main(args: dict):
     scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer, start_factor = 0.1, total_iters=9
     )
-    # Additional information
-    EPOCH = 5
-    PATH = "model.pt"
-    LOSS = 0.4
 
-    torch.save({
-                'epoch': EPOCH,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': LOSS,
-                }, PATH)
 
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     for epoch in tqdm(range(num_epochs)):
         train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
+        # TODO: list epochs
+        if epoch == 5 or epoch == 320 or epoch == 500:
+            torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    }, 'saves/epoch{}.pt'.format(epoch))
 
 def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg):
     # Set model to training mode
