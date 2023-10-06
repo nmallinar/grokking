@@ -26,7 +26,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='jonathanxue', project="may19-entk", mode=mode, config=args)
+    wandb.init(entity='belkinlab', project="oct5-grokking", mode=mode, config=args)
     # TODO: add wandb name
     # wandb.run.name = f'lr={args.learning_rate}'
     # wandb.run.save()
@@ -134,14 +134,15 @@ def visual_weights(model, epoch_idx):
     )
     wandb.log({"w0_w0.T": image})
 
-    w0w0t = w0w0t.cpu().squeeze().numpy()
+    w0w0t = w0 @ w0.T
+    w0w0t = w0w0t.detach().cpu().numpy()
     eigvals, _ = np.linalg.eig(w0w0t)
     plt.clf()
     plt.plot(range(len(eigvals)), np.log(eigvals))
     plt.title(f'Epoch {epoch_idx}, eigenvalues of W0 @ W0.T')
     plt.xlabel('eigenvalue index')
     plt.ylabel('log(eigenvalue)')
-    wandb.log({"spectra": plt})
+    wandb.log({"spectra": wandb.Image(plt)})
 
 def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg):
     # Set model to training mode
