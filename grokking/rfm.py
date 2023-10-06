@@ -5,13 +5,14 @@ import classic_kernel
 from tqdm import tqdm
 from torch import nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 #import hickle
 
 def main(num_tokens, dim_model, train_loader, test_loader, wandb, L):
     embedding_layer = nn.Embedding(num_tokens, dim_model).requires_grad_(False)
 
     rfm(train_loader, test_loader, embedding_layer, num_tokens, wandb,
-            iters=1000, name=None, batch_size=2, reg=1e-1,
+            iters=3, name=None, batch_size=2, reg=1.0,
             train_acc=True, L=L)
 
 def laplace_kernel_M(pair1, pair2, bandwidth, M):
@@ -93,12 +94,12 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
     label_proj = torch.eye(num_classes).double()
     X_train, y_train, true_y_train = get_data(train_loader, embedding_layer, num_classes, label_proj)
     X_test, y_test, true_y_test = get_data(test_loader, embedding_layer, num_classes, label_proj)
-    train_mean = X_train.mean(0, keepdim=True)
-    train_std = X_train.std(0, keepdim=True)
-    X_train -= train_mean
-    X_train /= train_std
-    X_test -= train_mean
-    X_test /= train_std
+    # train_mean = X_train.mean(0, keepdim=True)
+    # train_std = X_train.std(0, keepdim=True)
+    # X_train -= train_mean
+    # X_train /= train_std
+    # X_test -= train_mean
+    # X_test /= train_std
     #y_train -= 1.0/num_classes
     #y_test -= 1.0/num_classes
 
@@ -155,6 +156,9 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
 
 
         M  = get_grads(X_train, sol, L, torch.from_numpy(M), batch_size=batch_size)
+        plt.imshow(M)
+        plt.savefig(f'M_unique_round{i}.pdf')
+
         # if name is not None:
         #     hickle.dump(M, 'saved_Ms/M_' + name + '_' + str(i) + '.h')
 

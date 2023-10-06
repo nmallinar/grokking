@@ -7,6 +7,7 @@ import wandb
 import numpy as np
 import scipy
 import torchvision
+import matplotlib.pyplot as plt
 
 from data import get_data
 from model import Transformer, FCN, FCNEmbedded
@@ -25,7 +26,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='jonathanxue', project="neil empirical NTK", mode=mode, config=args)
+    wandb.init(entity='jonathanxue', project="may19-entk", mode=mode, config=args)
     # TODO: add wandb name
     # wandb.run.name = f'lr={args.learning_rate}'
     # wandb.run.save()
@@ -99,7 +100,8 @@ def main(args: dict):
 
     num_epochs = ceil(config.num_steps / len(train_loader))
 
-    viz_indices = [0, 1, 2, 3, 4, 5, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
+    # viz_indices = [0, 1, 2, 3, 4, 5, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
+    viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     for epoch in tqdm(range(num_epochs)):
         if epoch in viz_indices:
             visual_weights(model, epoch)
@@ -131,6 +133,15 @@ def visual_weights(model, epoch_idx):
         caption=f"Epoch {epoch_idx}, W0 @ W0.T"
     )
     wandb.log({"w0_w0.T": image})
+
+    w0w0t = w0w0t.cpu().squeeze().numpy()
+    eigvals, _ = np.linalg.eig(w0w0t)
+    plt.clf()
+    plt.plot(range(len(eigvals)), np.log(eigvals))
+    plt.title(f'Epoch {epoch_idx}, eigenvalues of W0 @ W0.T')
+    plt.xlabel('eigenvalue index')
+    plt.ylabel('log(eigenvalue)')
+    wandb.log({"spectra": plt})
 
 def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg):
     # Set model to training mode
