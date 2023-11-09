@@ -1,7 +1,8 @@
 from argparse import ArgumentParser
 
 from data import ALL_OPERATIONS
-from training import main
+# from training import main
+from training_agop_reg import main
 
 if __name__ == "__main__":
     parser = ArgumentParser()

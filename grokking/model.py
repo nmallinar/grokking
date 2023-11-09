@@ -27,10 +27,14 @@ class FCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
     super().__init__()
 
-    self.num_tokens = num_tokens
-    self.token_embeddings = nn.Embedding(num_tokens, dim_model)
-    self.token_embeddings.requires_grad_(False)
+    # self.num_tokens = num_tokens
+    # self.token_embeddings = nn.Embedding(num_tokens, dim_model)
+    # self.token_embeddings.requires_grad_(False)
     layers = []
+    layers.append(
+        nn.Linear(num_tokens, dim_model, bias=False),
+        nn.Flatten()
+    )
 
     inp_dim = dim_model * context_len
     for idx in range(num_layers-1):
@@ -39,15 +43,26 @@ class FCN(torch.nn.Module):
         inp_dim = hidden_width
 
     layers.append(nn.Linear(inp_dim, num_tokens, bias=False))
+    self.layers = layers
+    # self.layers = nn.Sequential(*layers)
 
-    self.layers = nn.Sequential(*layers)
+  def forward(self, x: Tensor, return_hid=False):
+    # batch_size = x.shape[0]
 
-  def forward(self, x: Tensor):
-    batch_size = x.shape[0]
-
-    token_embedding = self.token_embeddings(x)
-    token_embedding = token_embedding.view(batch_size, -1)
-    return self.layers(token_embedding)
+    # token_embedding = self.token_embeddings(x)
+    # token_embedding = token_embedding.view(batch_size, -1)
+    # return self.layers(token_embedding)
+    # return self.layers(x)
+    hid = [x]
+    x = self.layers[0](x)
+    x = self.layers[1](x)
+    hid.append(x)
+    for layer in self.layers[2:]:
+        x = layer(x)
+        hid.append(x)
+    if return_hid:
+        return x, hid
+    return x
 
 class DecoderBlock(torch.nn.Module):
   def __init__(self, dim_model: int, n_heads: int):
