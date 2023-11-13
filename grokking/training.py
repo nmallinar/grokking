@@ -26,7 +26,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='belkinlab', project="oct5-grokking", mode=mode, config=args)
+    wandb.init(entity='belkinlab', project="nov8-grokking", mode=mode, config=args)
     # TODO: add wandb name
     # wandb.run.name = f'lr={args.learning_rate}'
     # wandb.run.save()
@@ -101,7 +101,8 @@ def main(args: dict):
     num_epochs = ceil(config.num_steps / len(train_loader))
 
     # viz_indices = [0, 1, 2, 3, 4, 5, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
-    viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
+    #viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
+    viz_indices = [0, 1, 5, 25, 50, 100] + list(range(250, 25000, 250))
     for epoch in tqdm(range(num_epochs)):
         if epoch in viz_indices:
             visual_weights(model, epoch)

@@ -28,7 +28,7 @@ def main(args: dict):
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='belkinlab', project="oct5-grokking", mode=mode, config=args)
+    wandb.init(entity='belkinlab', project="nov8-grokking", mode=mode, config=args)
     # TODO: add wandb name
     # wandb.run.name = f'lr={args.learning_rate}'
     # wandb.run.save()
@@ -169,9 +169,11 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
         # Forward pass
         # output = model(inputs)
-        output, hid = model(inputs, return_hid=True)
-        for layer in hid:
-            layer.requires_grad_(True)
+        #output, hid = model(inputs, return_hid=True)
+        hid = model(inputs)
+        output = hid[-1]
+        for idx in range(len(hid)):
+            hid[idx].requires_grad_(True)
 
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
@@ -181,10 +183,14 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
         # Backward pass
         loss.backward(retain_graph=True)
+        import ipdb; ipdb.set_trace()
+        test = torch.autograd.functional.jacobian(lambda x: model(x, return_hid=True), inputs.float(), create_graph=True)
         jacs = []
-        for layer in reverse(hid):
+        for layer in reversed(hid):
             import ipdb; ipdb.set_trace()
-            jacs.append(torch.autograd.grad(output, layer, retain_graph=True))
+            test = torch.autograd.functional.jacobian(model, inputs.float(), create_graph=True)
+            test2 = torch.autograd.functional.jacobian(lambda x: model(x, return_hid=True)[1], inputs, create_graph=True)
+            #jacs.append(torch.autograd.grad(output[0][0], layer, retain_graph=True))
 
         # Update weights
         optimizer.step()
