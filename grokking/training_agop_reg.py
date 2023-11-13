@@ -10,13 +10,11 @@ import torchvision
 import matplotlib.pyplot as plt
 
 from data import get_data
-from model import Transformer, FCN, FCNEmbedded
-from rfm import main as rfm_main
-from rfm_entk import main as rfm_entk_main
+from model import Transformer, FCN
 import torch.nn.functional as F
+from torch import nn
 # from functorch import make_functional, vmap, vjp, jvp, jacrev
 
-from empirical_ntk import get_eNTK_batched
 
 torch.set_default_dtype(torch.float64)
 
@@ -54,6 +52,7 @@ def main(args: dict):
             config.batch_size
         )
 
+    embedding_layer = None
     if config.model == 'transformer':
         model = Transformer(
             num_layers=config.num_layers,
@@ -63,6 +62,9 @@ def main(args: dict):
             seq_len=5
             ).to(device)
     elif config.model == 'fcn':
+        embedding_layer = nn.Embedding(num_tokens, dim_model)
+        embedding_layer.requires_grad_(False)
+
         model = FCN(
             dim_model=config.dim_model,
             num_tokens=config.prime + 2,
@@ -70,22 +72,6 @@ def main(args: dict):
             hidden_width=config.fcn_hidden_width,
             context_len=context_len
         ).to(device)
-    elif config.model == 'rfm':
-        rfm_main(config.prime + 2, config.dim_model,
-                 train_loader, val_loader,
-                 wandb, config.kernel_bandwidth)
-        sys.exit(0)
-    elif config.model == 'rfm_fcn':
-        model = FCNEmbedded(
-            dim_model=config.dim_model,
-            num_tokens=config.prime + 2,
-            num_layers=config.num_layers,
-            hidden_width=config.fcn_hidden_width,
-            context_len=context_len
-        ).to(device)
-        rfm_entk_main(model, config.prime + 2, config.dim_model,
-                      train_loader, val_loader, wandb, config.device)
-        sys.exit(0)
 
     print("======= MODEL DEFINITION =======")
     print(model)
@@ -108,19 +94,8 @@ def main(args: dict):
         if epoch in viz_indices:
             visual_weights(model, epoch)
 
-        if config.eval_entk > 0 and (
-            (epoch <= 50 and epoch % 5 == 0) or
-            (epoch > 50 and epoch % config.eval_entk == 0)
-        ):
-            viz = False
-            if epoch in viz_indices:
-                viz = True
-            eval_entk(model, train_dataset, val_dataset, device, epoch, config.prime + 2, config.batch_size, viz=viz)
-            if device == 'cuda':
-                torch.cuda.empty_cache()
-
-        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss)
-        evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss)
+        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss, embedding_layer=embedding_layer)
+        evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss, embedding_layer=embedding_layer)
 
 def visual_weights(model, epoch_idx):
     params = dict(model.named_parameters())
@@ -146,7 +121,7 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra": wandb.Image(plt)})
 
-def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg):
+def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg, embedding_layer=None):
     # Set model to training mode
     model.train()
 
@@ -163,6 +138,11 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
         # Unpack the batch from the loader
         inputs, labels = batch
+
+        if embedding_layer is not None:
+            inputs = F.one_hot(inputs.long(), num_classes=num_classes)
+            inputs = embedding_layer(inputs)
+            inputs = inputs.view(inputs.size(0), -1)
 
         # Zero gradient buffers
         optimizer.zero_grad()
@@ -184,13 +164,13 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         # Backward pass
         loss.backward(retain_graph=True)
         import ipdb; ipdb.set_trace()
-        test = torch.autograd.functional.jacobian(lambda x: model(x, return_hid=True), inputs.float(), create_graph=True)
-        jacs = []
-        for layer in reversed(hid):
-            import ipdb; ipdb.set_trace()
-            test = torch.autograd.functional.jacobian(model, inputs.float(), create_graph=True)
-            test2 = torch.autograd.functional.jacobian(lambda x: model(x, return_hid=True)[1], inputs, create_graph=True)
-            #jacs.append(torch.autograd.grad(output[0][0], layer, retain_graph=True))
+        test = torch.autograd.functional.jacobian(model, inputs.float(), create_graph=True)
+        # jacs = []
+        # for layer in reversed(hid):
+        #     import ipdb; ipdb.set_trace()
+        #     test = torch.autograd.functional.jacobian(model, inputs.float(), create_graph=True)
+        #     test2 = torch.autograd.functional.jacobian(lambda x: model(x, return_hid=True)[1], inputs, create_graph=True)
+        #     #jacs.append(torch.autograd.grad(output[0][0], layer, retain_graph=True))
 
         # Update weights
         optimizer.step()
@@ -207,78 +187,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         if wandb.run.step == num_steps:
             return
 
-def eval_entk(model, train_dataset, val_dataset, device, epoch, num_classes, batch_size, viz=False):
-    model.eval()
-    train_data = train_dataset.dataset[train_dataset.indices]
-    val_data = val_dataset.dataset[val_dataset.indices]
-
-    n_train = train_data[1].shape[0]
-    n_ctrain = n_train * num_classes
-    n_val = val_data[1].shape[0]
-
-    # [n_train*num_classes, n_train*num_classes]
-    train_ntk = get_eNTK_batched(model, train_data, num_classes, device, batch_size)
-    train_ntk = train_ntk.numpy()
-
-    # [n_train*num_classes, n_test*num_classes]
-    train_test_ntk = get_eNTK_batched(model, train_data, num_classes, device, batch_size, val_dataset=val_data)
-    train_test_ntk = train_test_ntk.numpy()
-
-    y_tr = F.one_hot(train_data[1], num_classes=num_classes).reshape(n_ctrain)
-    alpha = scipy.linalg.solve(train_ntk + 1e-8*np.eye(n_ctrain), y_tr, assume_a='pos')
-
-    # training loss / accuracy first
-    preds = torch.from_numpy(train_ntk.T @ alpha)
-    mse = torch.mean((preds - y_tr)**2)
-    count = torch.argmax(preds.reshape(n_train, num_classes), dim=1)
-    acc = sum(count == train_data[1]) / float(n_train)
-    # print(f'Train MSE: {mse}, acc: {acc}')
-    del y_tr
-
-    metrics = {
-        "training/entk_accuracy": acc,
-        "training/entk_mse": mse,
-        "epoch": epoch
-    }
-    wandb.log(metrics, commit=False)
-
-    y_te = F.one_hot(val_data[1], num_classes=num_classes)
-    preds = torch.from_numpy(train_test_ntk.T @ alpha).reshape(n_val, num_classes)
-    mse = torch.mean((preds - y_te)**2)
-    count = torch.argmax(preds, dim=1)
-    acc = sum(count == val_data[1]) / float(n_val)
-    del y_te
-
-    metrics = {
-        "validation/entk_accuracy": acc,
-        "validation/entk_mse": mse,
-        "epoch": epoch
-    }
-    wandb.log(metrics, commit=False)
-
-    train_ntk = train_ntk.unsqueeze(0).unsqueeze(0)
-    train_ntk = torchvision.utils.make_grid(train_ntk)
-
-    image = wandb.Image(
-        train_ntk,
-        caption=f"Epoch {epoch_idx}, train entk"
-    )
-    wandb.log({"train entk": image})
-
-    train_test_ntk = train_test_ntk.unsqueeze(0).unsqueeze(0)
-    train_test_ntk = torchvision.utils.make_grid(train_test_ntk)
-
-    image = wandb.Image(
-        train_test_ntk,
-        caption=f"Epoch {epoch_idx}, train-test entk"
-    )
-    wandb.log({"train-test entk": image})
-
-    del train_ntk, train_test_ntk
-
-    # print(f'Val MSE: {mse}, acc: {acc}')
-
-def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
+def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_layer=None):
     # Set model to evaluation mode
     model.eval()
 
@@ -298,6 +207,11 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg):
 
         # Unpack the batch from the loader
         inputs, labels = batch
+
+        if embedding_layer is not None:
+            inputs = F.one_hot(inputs.long(), num_classes=num_classes)
+            inputs = embedding_layer(inputs)
+            inputs = inputs.view(inputs.size(0), -1)
 
         # Forward pass
         with torch.no_grad():

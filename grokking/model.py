@@ -29,6 +29,34 @@ class FCN(torch.nn.Module):
     super().__init__()
 
     self.num_tokens = num_tokens
+    layers = []
+
+    inp_dim = dim_model * context_len
+    for idx in range(num_layers-1):
+        layers.append(nn.Linear(inp_dim, hidden_width, bias=False))
+        layers.append(nn.ReLU())
+        inp_dim = hidden_width
+
+    layers.append(nn.Linear(inp_dim, num_tokens, bias=False))
+    self.layers = nn.Sequential(*layers)
+
+  def forward(self, x: Tensor, return_hid=False):
+
+    x = F.one_hot(x.long(), num_classes=self.num_tokens).double()
+    hid = [x]
+    for layer in self.layers[2:]:
+        x = layer(x)
+        hid.append(x)
+    return tuple(hid)
+    if return_hid:
+        return hid
+    return x
+
+class OldFCN(torch.nn.Module):
+  def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
+    super().__init__()
+
+    self.num_tokens = num_tokens
     # self.token_embeddings = nn.Embedding(num_tokens, dim_model)
     # self.token_embeddings.requires_grad_(False)
     layers = []
