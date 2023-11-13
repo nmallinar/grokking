@@ -32,7 +32,7 @@ class FCN(torch.nn.Module):
     layers = []
 
     inp_dim = dim_model * context_len
-    for idx in range(num_layers-1):
+    for idx in range(num_layers):
         layers.append(nn.Linear(inp_dim, hidden_width, bias=False))
         layers.append(nn.ReLU())
         inp_dim = hidden_width
