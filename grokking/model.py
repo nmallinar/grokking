@@ -41,8 +41,6 @@ class FCN(torch.nn.Module):
     self.layers = nn.Sequential(*layers)
 
   def forward(self, x: Tensor, return_hid=False):
-
-    x = F.one_hot(x.long(), num_classes=self.num_tokens).double()
     hid = [x]
     for layer in self.layers[2:]:
         x = layer(x)

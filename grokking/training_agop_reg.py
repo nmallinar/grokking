@@ -16,7 +16,7 @@ from torch import nn
 # from functorch import make_functional, vmap, vjp, jvp, jacrev
 
 
-torch.set_default_dtype(torch.float64)
+torch.set_default_dtype(torch.float32)
 
 def main(args: dict):
     if args.eval_entk > 0 and args.model != 'fcn':
@@ -62,8 +62,9 @@ def main(args: dict):
             seq_len=5
             ).to(device)
     elif config.model == 'fcn':
-        embedding_layer = nn.Embedding(num_tokens, dim_model)
+        embedding_layer = nn.Embedding(config.prime + 2, config.dim_model)
         embedding_layer.requires_grad_(False)
+        embedding_layer = embedding_layer.to(device)
 
         model = FCN(
             dim_model=config.dim_model,
@@ -94,7 +95,7 @@ def main(args: dict):
         if epoch in viz_indices:
             visual_weights(model, epoch)
 
-        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss, embedding_layer=embedding_layer)
+        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss, embedding_layer=embedding_layer, agop_weight=config.agop_weight)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss, embedding_layer=embedding_layer)
 
 def visual_weights(model, epoch_idx):
@@ -121,7 +122,7 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra": wandb.Image(plt)})
 
-def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg, embedding_layer=None):
+def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg, embedding_layer=None, agop_weight=0.0):
     # Set model to training mode
     model.train()
 
@@ -140,7 +141,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         inputs, labels = batch
 
         if embedding_layer is not None:
-            inputs = F.one_hot(inputs.long(), num_classes=num_classes)
+            #inputs = F.one_hot(inputs.long(), num_classes=num_classes)
             inputs = embedding_layer(inputs)
             inputs = inputs.view(inputs.size(0), -1)
 
@@ -158,19 +159,22 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
         if loss_arg == 'mse':
-            labels = F.one_hot(labels, num_classes).double()
+            labels = F.one_hot(labels, num_classes).float()
         loss = criterion(output, labels)
 
         # Backward pass
-        loss.backward(retain_graph=True)
-        import ipdb; ipdb.set_trace()
-        test = torch.autograd.functional.jacobian(model, inputs.float(), create_graph=True)
-        # jacs = []
-        # for layer in reversed(hid):
-        #     import ipdb; ipdb.set_trace()
-        #     test = torch.autograd.functional.jacobian(model, inputs.float(), create_graph=True)
-        #     test2 = torch.autograd.functional.jacobian(lambda x: model(x, return_hid=True)[1], inputs, create_graph=True)
-        #     #jacs.append(torch.autograd.grad(output[0][0], layer, retain_graph=True))
+        #loss.backward(retain_graph=True)
+        
+        if agop_weight > 0:
+            jacs = torch.autograd.functional.jacobian(model, inputs, create_graph=True)
+            jacs = list(jacs)
+            for idx in range(len(jacs)):
+                jacs[idx] = torch.sum(jacs[idx], dim=(1,2))
+                loss += agop_weight * torch.trace(jacs[idx].t() @ jacs[idx])
+            #del jacs
+            #torch.cuda.empty_cache()
+
+        loss.backward()
 
         # Update weights
         optimizer.step()
@@ -209,13 +213,13 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
         inputs, labels = batch
 
         if embedding_layer is not None:
-            inputs = F.one_hot(inputs.long(), num_classes=num_classes)
             inputs = embedding_layer(inputs)
             inputs = inputs.view(inputs.size(0), -1)
 
         # Forward pass
         with torch.no_grad():
             output = model(inputs)
+            output = output[-1]
             correct += (torch.argmax(output, dim=1) == labels).sum()
 
             if loss_arg == 'mse':
