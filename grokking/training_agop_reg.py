@@ -13,6 +13,7 @@ from data import get_data
 from model import Transformer, FCN
 import torch.nn.functional as F
 from torch import nn
+from torch.func import jacrev
 # from functorch import make_functional, vmap, vjp, jvp, jacrev
 
 
@@ -164,15 +165,16 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
         # Backward pass
         #loss.backward(retain_graph=True)
-        
+
         if agop_weight > 0:
-            jacs = torch.autograd.functional.jacobian(model, inputs, create_graph=True)
+            jacs = jacrev(model.forward)(inputs)
+            import import ipdb; ipdb.set_trace()
+
+            jacs2 = torch.autograd.functional.jacobian(model, inputs, create_graph=True)
             jacs = list(jacs)
             for idx in range(len(jacs)):
                 jacs[idx] = torch.sum(jacs[idx], dim=(1,2))
                 loss += agop_weight * torch.trace(jacs[idx].t() @ jacs[idx])
-            #del jacs
-            #torch.cuda.empty_cache()
 
         loss.backward()
 
