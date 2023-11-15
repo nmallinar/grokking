@@ -7,6 +7,7 @@ from training_agop_reg import main
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--wandb_offline", action='store_true', default=False)
+    parser.add_argument("--wandb_proj_name", type=str, default="neil-grokking-test")
     parser.add_argument("--operation", type=str, choices=ALL_OPERATIONS.keys(), default="x/y")
     parser.add_argument("--training_fraction", type=float, default=0.5)
     parser.add_argument("--prime", type=int, default=97)
@@ -16,6 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--learning_rate", type=float, default=1e-3)
     parser.add_argument("--agop_weight", type=float, default=1e-4)
+    parser.add_argument("--agop_subsample_n", type=int, default=-1)
     parser.add_argument("--weight_decay", type=float, default=1)
     parser.add_argument("--num_steps", type=int, default=1e5)
     parser.add_argument("--device", type=str, default="cpu")

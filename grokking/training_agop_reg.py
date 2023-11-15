@@ -14,20 +14,16 @@ from model import Transformer, FCN
 import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
-# from functorch import make_functional, vmap, vjp, jvp, jacrev
-
 
 torch.set_default_dtype(torch.float32)
 
 def main(args: dict):
-    if args.eval_entk > 0 and args.model != 'fcn':
-        raise Exception('empirical NTK evaluation only supported for FCN')
-
     if args.wandb_offline:
         mode = 'offline'
     else:
         mode = 'online'
-    wandb.init(entity='belkinlab', project="nov8-grokking", mode=mode, config=args)
+
+    wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args)
     # TODO: add wandb name
     # wandb.run.name = f'lr={args.learning_rate}'
     # wandb.run.save()
@@ -96,7 +92,7 @@ def main(args: dict):
         if epoch in viz_indices:
             visual_weights(model, epoch)
 
-        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss, embedding_layer=embedding_layer, agop_weight=config.agop_weight)
+        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss, embedding_layer=embedding_layer, agop_weight=config.agop_weight, agop_subsample_n=config.agop_subsample_n)
         evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss, embedding_layer=embedding_layer)
 
 def visual_weights(model, epoch_idx):
@@ -123,7 +119,7 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra": wandb.Image(plt)})
 
-def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg, embedding_layer=None, agop_weight=0.0):
+def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg, embedding_layer=None, agop_weight=0.0, agop_subsample_n=-1):
     # Set model to training mode
     model.train()
 
@@ -167,10 +163,16 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         #loss.backward(retain_graph=True)
 
         if agop_weight > 0:
-            jacs = jacrev(model.forward)(inputs)
+            if agop_subsample_n > 0:
+                indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
+                inp_sample = inputs[indices]
+            else:
+                inp_sample = inputs
+
+            jacs = jacrev(model.forward)(inp_sample)
             import import ipdb; ipdb.set_trace()
 
-            jacs2 = torch.autograd.functional.jacobian(model, inputs, create_graph=True)
+            jacs2 = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
             jacs = list(jacs)
             for idx in range(len(jacs)):
                 jacs[idx] = torch.sum(jacs[idx], dim=(1,2))
