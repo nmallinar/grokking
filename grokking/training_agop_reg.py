@@ -169,10 +169,13 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
             else:
                 inp_sample = inputs
 
-            jacs = jacrev(model.forward)(inp_sample)
-            import import ipdb; ipdb.set_trace()
-
-            jacs2 = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
+            # all of these methods work for computing jacobians, they have different
+            # tradeoffs depending on layer and batch sizes, but they can be 
+            # used interchangeably if one is too slow
+            jacs = torch.func.jacrev(model.forward)(inp_sample)
+            jacs = torch.func.jacfwd(model.forward)(inp_sample)
+            jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
+            import ipdb; ipdb.set_trace()
             jacs = list(jacs)
             for idx in range(len(jacs)):
                 jacs[idx] = torch.sum(jacs[idx], dim=(1,2))
