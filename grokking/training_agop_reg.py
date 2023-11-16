@@ -14,6 +14,7 @@ from model import Transformer, FCN
 import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
+from rfm import main as rfm_main
 
 torch.set_default_dtype(torch.float32)
 
@@ -70,19 +71,34 @@ def main(args: dict):
             hidden_width=config.fcn_hidden_width,
             context_len=context_len
         ).to(device)
+    elif config.model == 'rfm':
+        embedding_layer = nn.Embedding(config.prime + 2, config.dim_model)
+        embedding_layer.requires_grad_(False)
+        rfm_main(config.prime + 2, config.dim_model,
+                 train_loader, val_loader,
+                 wandb, config.kernel_bandwidth, embedding_layer,
+                 config.agop_weight)
+        sys.exit(0)
 
     print("======= MODEL DEFINITION =======")
     print(model)
 
-    optimizer = torch.optim.AdamW(
+    optimizer = torch.optim.SGD(
         model.parameters(),
         lr=config.learning_rate,
-        betas=(0.9, 0.98),
-        weight_decay=config.weight_decay
-        )
-    scheduler = torch.optim.lr_scheduler.LinearLR(
-        optimizer, start_factor = 0.1, total_iters=9
+        weight_decay=config.weight_decay,
+        momentum=0.0
     )
+
+    # optimizer = torch.optim.AdamW(
+    #     model.parameters(),
+    #     lr=config.learning_rate,
+    #     betas=(0.9, 0.98),
+    #     weight_decay=config.weight_decay
+    #     )
+    # scheduler = torch.optim.lr_scheduler.LinearLR(
+    #     optimizer, start_factor = 0.1, total_iters=9
+    # )
 
     num_epochs = ceil(config.num_steps / len(train_loader))
 
@@ -162,7 +178,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         # Backward pass
         #loss.backward(retain_graph=True)
         mse_loss = loss.clone()
-        agop_tr = torch.tensor(0.0) 
+        agop_tr = torch.tensor(0.0)
         if agop_weight > 0:
             if agop_subsample_n > 0:
                 indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
@@ -171,7 +187,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
                 inp_sample = inputs
 
             # all of these methods work for computing jacobians, they have different
-            # tradeoffs depending on layer and batch sizes, but they can be 
+            # tradeoffs depending on layer and batch sizes, but they can be
             # used interchangeably if one is too slow
             #jacs = torch.func.jacrev(model.forward)(inp_sample)
             jacs = torch.func.jacfwd(model.forward)(inp_sample)
@@ -190,7 +206,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
         # Update weights
         optimizer.step()
-        scheduler.step()
+        # scheduler.step()
 
         metrics = {
             "training/accuracy": acc,

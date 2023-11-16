@@ -8,12 +8,10 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 #import hickle
 
-def main(num_tokens, dim_model, train_loader, test_loader, wandb, L):
-    embedding_layer = nn.Embedding(num_tokens, dim_model).requires_grad_(False)
-
+def main(num_tokens, dim_model, train_loader, test_loader, wandb, L, embedding_layer, agop_weight):
     rfm(train_loader, test_loader, embedding_layer, num_tokens, wandb,
-            iters=3, name=None, batch_size=2, reg=1.0,
-            train_acc=True, L=L)
+            iters=1, name=None, batch_size=2, reg=1e-5,
+            train_acc=True, L=L, agop_weight=agop_weight)
 
 def laplace_kernel_M(pair1, pair2, bandwidth, M):
     return classic_kernel.laplacian_M(pair1, pair2, bandwidth, M)
@@ -83,47 +81,61 @@ def get_grads(X, sol, L, P, batch_size=2):
 
     return M
 
+def get_grad_reg(X, L, P):
+    M = 0.
+    num_samples = X.size(0)
+    indices = np.random.randint(len(X), size=num_samples)
+
+    if len(X) > len(indices):
+        x = X[indices, :]
+    else:
+        x = X
+
+    K = laplace_kernel_M(X, x, L, P)
+
+    dist = classic_kernel.euclidean_distances_M(X, x, P, squared=False)
+    dist = torch.where(dist < 1e-10, torch.zeros(1).float(), dist)
+
+    K = K/dist
+    K[K == float("Inf")] = 0.
+
+    # n x n x d
+    all_diffs = torch.zeros(X.size(0), X.size(0), X.size(1))
+    for i in range(X.size(0)):
+        all_diffs[i] = X - X[i]
+
+    G = 0.
+    for i in range(X.size(0)):
+        G += all_diffs[i] @ all_diffs[i].T
+    # G /= X.size(0)
+
+    return G * 1./L
+
 
 def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
         iters=3, name=None, batch_size=2, reg=1e-3,
-        train_acc=False, L=1):
+        train_acc=False, L=1, agop_weight=1e-5):
 
-
-    #label_proj = torch.randn(num_classes, num_classes, dtype=torch.double)
-    # label_proj = embedding_layer.weight.double()
-    label_proj = torch.eye(num_classes).double()
-    X_train, y_train, true_y_train = get_data(train_loader, embedding_layer, num_classes, label_proj)
-    X_test, y_test, true_y_test = get_data(test_loader, embedding_layer, num_classes, label_proj)
-    # train_mean = X_train.mean(0, keepdim=True)
-    # train_std = X_train.std(0, keepdim=True)
-    # X_train -= train_mean
-    # X_train /= train_std
-    # X_test -= train_mean
-    # X_test /= train_std
-    #y_train -= 1.0/num_classes
-    #y_test -= 1.0/num_classes
+    X_train, y_train, true_y_train = get_data(train_loader, embedding_layer, num_classes)
+    X_test, y_test, true_y_test = get_data(test_loader, embedding_layer, num_classes)
 
     n, d = X_train.shape
 
     M = np.eye(d, dtype='float64')
-    # EEt = embedding_layer.weight @ embedding_layer.weight.T
-    # labelE = embedding_layer.weight.T @ torch.linalg.pinv(EEt)
-    # labelE = label_proj.T @ torch.linalg.pinv(label_proj @ label_proj.T)
-    #labelE = np.linalg.pinv(label_proj)
-    labelE = torch.eye(num_classes).double()
-    # labelE = label_proj.T
     for i in range(iters):
+        G_reg = get_grad_reg(X_train, L, torch.from_numpy(M)).numpy()
         K_train = laplace_kernel_M(X_train, X_train, L, torch.from_numpy(M)).numpy()
-        sol = solve(K_train + reg * np.eye(len(K_train)), y_train).T
+        sol = np.linalg.inv(K_train.T @ K_train + agop_weight*G_reg) @ K_train @ y_train.numpy()
+        sol = sol.T
+        # sol = solve(K_train + reg * np.eye(len(K_train)), y_train).T
 
         if train_acc:
             preds = (sol @ K_train).T
             loss = np.mean(np.square(preds - y_train.numpy()))
             print("Round " + str(i) + " Train MSE: ", loss) # Loss function
             y_pred = torch.from_numpy(preds)
-            # preds = torch.argmax(y_pred, dim=-1)
-            preds = torch.argmax(y_pred@labelE, dim=-1)
-            labels = torch.argmax(y_train@labelE, dim=-1)
+            preds = torch.argmax(y_pred, dim=-1)
+            labels = torch.argmax(y_train, dim=-1)
             count = torch.sum(true_y_train == preds).numpy()
             acc = count / len(labels)
             print("Round " + str(i) + " Train Acc: ", acc)
@@ -140,9 +152,8 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
         loss = np.mean(np.square(preds - y_test.numpy()))
         print("Round " + str(i) + " MSE: ", loss) # Loss function
         y_pred = torch.from_numpy(preds)
-        # preds = torch.argmax(y_pred, dim=-1)
-        preds = torch.argmax(y_pred@labelE, dim=-1)
-        labels = torch.argmax(y_test@labelE, dim=-1)
+        preds = torch.argmax(y_pred, dim=-1)
+        labels = torch.argmax(y_test, dim=-1)
         count = torch.sum(true_y_test == preds).numpy()
         acc = count / len(labels)
         print("Round " + str(i) + " Acc: ", acc)
@@ -176,7 +187,7 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
     return mse
 
 
-def get_data(loader, embedding_layer, num_classes, label_proj):
+def get_data(loader, embedding_layer, num_classes):
     X = []
     y = []
     true_y = []
@@ -184,12 +195,8 @@ def get_data(loader, embedding_layer, num_classes, label_proj):
         inputs, labels = batch
         batch_size = inputs.shape[0]
         inputs = torch.stack((inputs[:,0], inputs[:,2]), dim=1)
-        # embedding_layer(inputs): (n, seq_len, d)
-        # X.append(torch.mean(embedding_layer(inputs), 1))
         X.append(embedding_layer(inputs).view(batch_size, -1))
 
         true_y.append(labels)
-        # y.append(F.one_hot(labels, num_classes))
-        # embedding_layer(labels): (n, d)
-        y.append(F.one_hot(labels, num_classes).double() @ label_proj)
+        y.append(F.one_hot(labels, num_classes).double())
     return torch.cat(X, dim=0).double(), torch.cat(y, dim=0).double(), torch.cat(true_y, dim=0)
