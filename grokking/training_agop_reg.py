@@ -25,8 +25,8 @@ def main(args: dict):
 
     wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args)
     # TODO: add wandb name
-    # wandb.run.name = f'lr={args.learning_rate}'
-    # wandb.run.save()
+    wandb.run.name = f'agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
+    wandb.run.save()
 
     config = wandb.config
     device = torch.device(config.device)
@@ -113,7 +113,7 @@ def visual_weights(model, epoch_idx):
     w0w0t = w0w0t.detach().cpu().numpy()
     eigvals, _ = np.linalg.eig(w0w0t)
     plt.clf()
-    plt.plot(range(len(eigvals)), np.log(eigvals))
+    plt.plot(range(len(eigvals)), np.log(eigvals + 1e-12))
     plt.title(f'Epoch {epoch_idx}, eigenvalues of W0 @ W0.T')
     plt.xlabel('eigenvalue index')
     plt.ylabel('log(eigenvalue)')
@@ -161,7 +161,8 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
 
         # Backward pass
         #loss.backward(retain_graph=True)
-
+        mse_loss = loss.clone()
+        agop_tr = torch.tensor(0.0) 
         if agop_weight > 0:
             if agop_subsample_n > 0:
                 indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
@@ -172,14 +173,18 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
             # all of these methods work for computing jacobians, they have different
             # tradeoffs depending on layer and batch sizes, but they can be 
             # used interchangeably if one is too slow
-            jacs = torch.func.jacrev(model.forward)(inp_sample)
+            #jacs = torch.func.jacrev(model.forward)(inp_sample)
             jacs = torch.func.jacfwd(model.forward)(inp_sample)
-            jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
-            import ipdb; ipdb.set_trace()
-            jacs = list(jacs)
+            #jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
+            #import ipdb; ipdb.set_trace()
+            #jacs = list(jacs)
+            agop_tr = 0.0
             for idx in range(len(jacs)):
-                jacs[idx] = torch.sum(jacs[idx], dim=(1,2))
-                loss += agop_weight * torch.trace(jacs[idx].t() @ jacs[idx])
+                jac = torch.sum(jacs[idx], dim=(1,2))
+                jac = jac.t() @ jac
+                jac = jac / torch.max(jac)
+                agop_tr += torch.trace(jac)
+            loss += agop_weight * agop_tr
 
         loss.backward()
 
@@ -190,6 +195,8 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         metrics = {
             "training/accuracy": acc,
             "training/loss": loss,
+            "training/mse_loss": mse_loss,
+            "training/agop_tr": agop_tr.detach().cpu().numpy(),
             "step": wandb.run.step
         }
         wandb.log(metrics)
