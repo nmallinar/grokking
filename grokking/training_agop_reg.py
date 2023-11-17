@@ -178,28 +178,29 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         # Backward pass
         #loss.backward(retain_graph=True)
         mse_loss = loss.clone()
-        agop_tr = torch.tensor(0.0)
-        if agop_weight > 0:
-            if agop_subsample_n > 0:
-                indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
-                inp_sample = inputs[indices]
-            else:
-                inp_sample = inputs
 
-            # all of these methods work for computing jacobians, they have different
-            # tradeoffs depending on layer and batch sizes, but they can be
-            # used interchangeably if one is too slow
-            #jacs = torch.func.jacrev(model.forward)(inp_sample)
-            jacs = torch.func.jacfwd(model.forward)(inp_sample)
-            #jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
-            #import ipdb; ipdb.set_trace()
-            #jacs = list(jacs)
-            agop_tr = 0.0
-            for idx in range(len(jacs)):
-                jac = torch.sum(jacs[idx], dim=(1,2))
-                jac = jac.t() @ jac
-                jac = jac / torch.max(jac)
-                agop_tr += torch.trace(jac)
+        if agop_subsample_n > 0:
+            indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
+            inp_sample = inputs[indices]
+        else:
+            inp_sample = inputs
+
+        # all of these methods work for computing jacobians, they have different
+        # tradeoffs depending on layer and batch sizes, but they can be
+        # used interchangeably if one is too slow
+        #jacs = torch.func.jacrev(model.forward)(inp_sample)
+        jacs = torch.func.jacfwd(model.forward)(inp_sample)
+        #jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
+        #import ipdb; ipdb.set_trace()
+        #jacs = list(jacs)
+        agop_tr = 0.0
+        for idx in range(len(jacs)):
+            jac = torch.sum(jacs[idx], dim=(1,2))
+            jac = jac.t() @ jac
+            jac = jac / torch.max(jac)
+            agop_tr += torch.trace(jac)
+
+        if agop_weight > 0:
             loss += agop_weight * agop_tr
 
         loss.backward()
