@@ -26,8 +26,11 @@ def main(args: dict):
 
     wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args)
     # TODO: add wandb name
-    wandb.run.name = f'agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
+    wandb.run.name = f'{wandb.run.id} - agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
     wandb.run.save()
+
+    out_dir = os.path.join(args.out_dir, args.wandb_proj_name, wandb.run.id)
+    os.makedirs(out_dir, exist_ok=True)
 
     config = wandb.config
     device = torch.device(config.device)
@@ -112,8 +115,38 @@ def main(args: dict):
         if epoch in viz_indices:
             visual_weights(model, epoch)
 
-        train(model, train_loader, optimizer, scheduler, device, config.num_steps, config.prime + 2, args.loss, embedding_layer=embedding_layer, agop_weight=config.agop_weight, agop_subsample_n=config.agop_subsample_n)
-        evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss, embedding_layer=embedding_layer)
+        train(model, train_loader, optimizer, scheduler, device,
+              config.num_steps, config.prime + 2, args.loss,
+              embedding_layer=embedding_layer,
+              agop_weight=config.agop_weight,
+              agop_subsample_n=config.agop_subsample_n)
+        val_acc = evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss, embedding_layer=embedding_layer)
+
+        if val_acc == 1.0:
+            final_agops = []
+            total_n = 0
+            for idx, batch in enumerate(train_loader):
+                # Copy data to device if needed
+                batch = tuple(t.to(device) for t in batch)
+                # Unpack the batch from the loader
+                inputs, labels = batch
+                total_n += inputs.size(0)
+
+                if embedding_layer is not None:
+                    inputs = embedding_layer(inputs)
+                    inputs = inputs.view(inputs.size(0), -1)
+
+                _, agops = calc_agops(model, inputs, config.agop_subsample_n, device, normalize=False)
+                if idx == 0:
+                    for agop in agops:
+                        final_agops.append(agop)
+                else:
+                    for idx in range(len(agops)):
+                        final_agops[idx] += agops[idx]
+            for idx in range(len(agops)):
+                final_agops[idx] /= (total_n**2)
+                np.save(os.path.join(out_dir, f'agop_{idx}.npy'), final_agops[idx])
+            np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.detach().cpu().numpy())
 
 def visual_weights(model, epoch_idx):
     params = dict(model.named_parameters())
@@ -139,7 +172,38 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra": wandb.Image(plt)})
 
-def train(model, train_loader, optimizer, scheduler, device, num_steps, num_classes, loss_arg, embedding_layer=None, agop_weight=0.0, agop_subsample_n=-1):
+def calc_agops(model, inputs, agop_subsample_n, device, normalize=True):
+    if agop_subsample_n > 0:
+        indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
+        inp_sample = inputs[indices]
+    else:
+        inp_sample = inputs
+
+    # all of these methods work for computing jacobians, they have different
+    # tradeoffs depending on layer and batch sizes, but they can be
+    # used interchangeably if one is too slow
+    #jacs = torch.func.jacrev(model.forward)(inp_sample)
+    jacs = torch.func.jacfwd(model.forward)(inp_sample)
+    #jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
+    #jacs = list(jacs)
+    agop_tr = 0.0
+    agops = []
+    for idx in range(len(jacs)):
+        jac = torch.sum(jacs[idx], dim=(1,2))
+        if normalize:
+            jac = jac / inp_sample.size(0)
+
+        jac = jac.t() @ jac
+        agops.append(jac.detach().cpu().numpy())
+        # jac = jac / torch.max(jac)
+        agop_tr += torch.trace(jac)
+
+    return agop_tr, agops
+
+def train(model, train_loader, optimizer, scheduler,
+          device, num_steps, num_classes, loss_arg,
+          embedding_layer=None, agop_weight=0.0,
+          agop_subsample_n=-1):
     # Set model to training mode
     model.train()
 
@@ -183,27 +247,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         #loss.backward(retain_graph=True)
         mse_loss = loss.clone()
 
-        if agop_subsample_n > 0:
-            indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
-            inp_sample = inputs[indices]
-        else:
-            inp_sample = inputs
-
-        # all of these methods work for computing jacobians, they have different
-        # tradeoffs depending on layer and batch sizes, but they can be
-        # used interchangeably if one is too slow
-        #jacs = torch.func.jacrev(model.forward)(inp_sample)
-        jacs = torch.func.jacfwd(model.forward)(inp_sample)
-        #jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
-        #import ipdb; ipdb.set_trace()
-        #jacs = list(jacs)
-        agop_tr = 0.0
-        for idx in range(len(jacs)):
-            jac = torch.sum(jacs[idx], dim=(1,2))
-            jac = jac.t() @ jac
-            # jac = jac / torch.max(jac)
-            agop_tr += torch.trace(jac)
-
+        agop_tr, _ = calc_agops(model, inputs, agop_subsample_n, device)
         if agop_weight > 0:
             loss += agop_weight * agop_tr
 
@@ -271,3 +315,5 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
         "epoch": epoch
     }
     wandb.log(metrics, commit=False)
+
+    return acc

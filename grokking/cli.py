@@ -28,6 +28,7 @@ if __name__ == "__main__":
     parser.add_argument("--loss", type=str, default='mse', choices={'cross_entropy', 'mse'})
     parser.add_argument("--kernel_bandwidth", type=float, default=1.0)
     parser.add_argument("--eval_entk", type=int, default=-1)
+    parser.add_argument("--out_dir", typ=str, default="/scratch/bbjr/mallina1/grokking_output")
     args = parser.parse_args()
 
     main(args)
