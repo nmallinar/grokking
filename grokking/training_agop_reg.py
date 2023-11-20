@@ -89,13 +89,16 @@ def main(args: dict):
         weight_decay=config.weight_decay,
         momentum=0.0
     )
+    scheduler = None
 
-    # optimizer = torch.optim.AdamW(
-    #     model.parameters(),
-    #     lr=config.learning_rate,
-    #     betas=(0.9, 0.98),
-    #     weight_decay=config.weight_decay
-    #     )
+    '''
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config.learning_rate,
+        betas=(0.9, 0.98),
+        weight_decay=config.weight_decay
+        )
+    '''
     # scheduler = torch.optim.lr_scheduler.LinearLR(
     #     optimizer, start_factor = 0.1, total_iters=9
     # )
