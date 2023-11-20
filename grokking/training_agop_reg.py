@@ -188,7 +188,7 @@ def calc_agops(model, inputs, agop_subsample_n, device, normalize=True):
     #jacs = list(jacs)
     agop_tr = 0.0
     agops = []
-    for idx in range(len(jacs)):
+    for idx in range(len(jacs)-1):
         jac = torch.sum(jacs[idx], dim=(1,2))
         if normalize:
             jac = jac / inp_sample.size(0)

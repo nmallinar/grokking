@@ -25,9 +25,9 @@ python cli.py \
   --model fcn \
   --eval_entk -1 \
   --num_layers 1 \
-  --weight_decay 0.0 \
-  --agop_weight 1.0 \
-  --wandb_proj_name "nov15-grokking" \
+  --weight_decay 1.0 \
+  --agop_weight 0.0 \
+  --wandb_proj_name "nov20-grokking" \
   --agop_subsample_n -1 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \

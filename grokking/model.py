@@ -47,7 +47,7 @@ class FCN(torch.nn.Module):
         # hid.append(x)
         if isinstance(layer, nn.ReLU):
            hid.append(x)
-    # hid.append(x) # append output states
+    hid.append(x) # append output states
     return tuple(hid)
     #hid = [x]
     #for layer in self.layers[2:]:
