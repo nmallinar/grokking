@@ -52,6 +52,7 @@ def main(args: dict):
             config.training_fraction,
             config.batch_size
         )
+    num_tokens = config.prime + 2
 
     embedding_layer = None
     if config.model == 'transformer':
@@ -59,25 +60,25 @@ def main(args: dict):
             num_layers=config.num_layers,
             dim_model=config.dim_model,
             num_heads=config.num_heads,
-            num_tokens=config.prime + 2,
+            num_tokens=num_tokens,
             seq_len=5
             ).to(device)
     elif config.model == 'fcn':
-        embedding_layer = nn.Embedding(config.prime + 2, config.dim_model)
+        embedding_layer = nn.Embedding(num_tokens, config.dim_model)
         embedding_layer.requires_grad_(False)
         embedding_layer = embedding_layer.to(device)
 
         model = FCN(
             dim_model=config.dim_model,
-            num_tokens=config.prime + 2,
+            num_tokens=num_tokens,
             num_layers=config.num_layers,
             hidden_width=config.fcn_hidden_width,
             context_len=context_len
         ).to(device)
     elif config.model == 'rfm':
-        embedding_layer = nn.Embedding(config.prime + 2, config.dim_model)
+        embedding_layer = nn.Embedding(num_tokens, config.dim_model)
         embedding_layer.requires_grad_(False)
-        rfm_main(config.prime + 2, config.dim_model,
+        rfm_main(num_tokens, config.dim_model,
                  train_loader, val_loader,
                  wandb, config.kernel_bandwidth, embedding_layer,
                  config.agop_weight)
@@ -116,11 +117,11 @@ def main(args: dict):
             visual_weights(model, epoch)
 
         train(model, train_loader, optimizer, scheduler, device,
-              config.num_steps, config.prime + 2, args.loss,
+              config.num_steps, num_tokens, args.loss,
               embedding_layer=embedding_layer,
               agop_weight=config.agop_weight,
               agop_subsample_n=config.agop_subsample_n)
-        val_acc = evaluate(model, val_loader, device, epoch, config.prime + 2, args.loss, embedding_layer=embedding_layer)
+        val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, embedding_layer=embedding_layer)
 
         if val_acc == 1.0:
             final_agops = []

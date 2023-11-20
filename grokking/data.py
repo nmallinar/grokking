@@ -32,13 +32,14 @@ def operation_mod_p_data(operation: str, p: int, eq_token: int, op_token: int):
     y = torch.arange(0 if not operation in DIVISION_MODULO_OPERATIONS else 1, p)
     x, y = torch.cartesian_prod(x, y).T
 
-    eq = torch.ones_like(x) * eq_token
-    op = torch.ones_like(x) * op_token
+    # eq = torch.ones_like(x) * eq_token
+    # op = torch.ones_like(x) * op_token
 
     x, y, z = ALL_OPERATIONS[operation](x, y, p)
     results = z.remainder(p)
 
-    inputs = torch.stack([x, op, y, eq], dim=1)
+    inputs = torch.stack([x, y], dim=1)
+    # inputs = torch.stack([x, op, y, eq], dim=1)
     labels = results
 
     return inputs, labels
