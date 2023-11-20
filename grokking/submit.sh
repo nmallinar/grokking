@@ -31,4 +31,5 @@ python cli.py \
   --agop_subsample_n -1 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \
-  --momentum 0.0
+  --momentum 0.0 \
+  --num_steps 100000
