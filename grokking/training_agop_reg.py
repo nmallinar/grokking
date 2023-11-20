@@ -83,22 +83,23 @@ def main(args: dict):
     print("======= MODEL DEFINITION =======")
     print(model)
 
-    optimizer = torch.optim.SGD(
-        model.parameters(),
-        lr=config.learning_rate,
-        weight_decay=config.weight_decay,
-        momentum=0.0
-    )
-    scheduler = None
-
-    '''
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=config.learning_rate,
-        betas=(0.9, 0.98),
-        weight_decay=config.weight_decay
+    if config.optimizer == 'sgd':
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
+            momentum=config.momentum
         )
-    '''
+    elif config.optimizer == 'adamw':
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=config.learning_rate,
+            betas=(0.9, 0.98),
+            weight_decay=config.weight_decay
+            )
+    else:
+        raise Exception('optimizer not implemented!')
+    scheduler = None
     # scheduler = torch.optim.lr_scheduler.LinearLR(
     #     optimizer, start_factor = 0.1, total_iters=9
     # )
@@ -200,7 +201,7 @@ def train(model, train_loader, optimizer, scheduler, device, num_steps, num_clas
         for idx in range(len(jacs)):
             jac = torch.sum(jacs[idx], dim=(1,2))
             jac = jac.t() @ jac
-            jac = jac / torch.max(jac)
+            # jac = jac / torch.max(jac)
             agop_tr += torch.trace(jac)
 
         if agop_weight > 0:

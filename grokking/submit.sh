@@ -17,4 +17,18 @@
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 source /projects/bbjr/mallina1/envs/torch2/bin/activate
-python cli.py --training_fraction 0.5 --prime 31 --batch_size 32 --device cuda --model fcn --eval_entk -1 --num_layers 2 --weight_decay 0.0 --agop_weight 1.0 --wandb_proj_name "nov15-grokking" --agop_subsample_n -1
+python cli.py \
+  --training_fraction 0.5 \
+  --prime 31 \
+  --batch_size 32 \
+  --device cuda \
+  --model fcn \
+  --eval_entk -1 \
+  --num_layers 1 \
+  --weight_decay 0.0 \
+  --agop_weight 1.0 \
+  --wandb_proj_name "nov15-grokking" \
+  --agop_subsample_n -1 \
+  --learning_rate 1e-3 \
+  --optimizer "adamw" \
+  --momentum 0.0
