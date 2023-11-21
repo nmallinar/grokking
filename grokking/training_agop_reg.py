@@ -53,6 +53,7 @@ def main(args: dict):
             config.batch_size
         )
     num_tokens = config.prime + 2
+    num_tokens = config.prime
 
     embedding_layer = None
     if config.model == 'transformer':
@@ -147,7 +148,7 @@ def main(args: dict):
             for idx in range(len(agops)):
                 final_agops[idx] /= (total_n**2)
                 np.save(os.path.join(out_dir, f'agop_{idx}.npy'), final_agops[idx])
-            np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.detach().cpu().numpy())
+            np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
 
 def visual_weights(model, epoch_idx):
     params = dict(model.named_parameters())

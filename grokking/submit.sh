@@ -21,16 +21,18 @@ python cli.py \
   --training_fraction 0.5 \
   --prime 31 \
   --batch_size 32 \
+  --dim_model 128 \
   --device cuda \
   --model fcn \
+  --fcn_hidden_width 256 \
   --eval_entk -1 \
   --num_layers 1 \
-  --weight_decay 1.0 \
-  --agop_weight 0.0 \
+  --weight_decay 0.0 \
+  --agop_weight 1.0 \
   --wandb_proj_name "nov20-grokking" \
   --agop_subsample_n -1 \
   --learning_rate 1e-3 \
-  --optimizer "adamw" \
+  --optimizer "sgd" \
   --momentum 0.0 \
-  --num_steps 100000 \
+  --num_steps 500000 \
   --out_dir "/scratch/bbjr/mallina1/grokking_output"
