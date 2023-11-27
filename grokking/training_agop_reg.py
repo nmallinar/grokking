@@ -139,15 +139,16 @@ def main(args: dict):
                     inputs = inputs.view(inputs.size(0), -1)
 
                 _, agops = calc_agops(model, inputs, config.agop_subsample_n, device, normalize=False)
+                np.save(os.path.join(out_dir, f' batch_agop_{idx}.npy'), agops[0])
                 if idx == 0:
                     for agop in agops:
                         final_agops.append(agop)
                 else:
                     for idx in range(len(agops)):
                         final_agops[idx] += agops[idx]
-            for idx in range(len(agops)):
-                final_agops[idx] /= (total_n**2)
-                np.save(os.path.join(out_dir, f'agop_{idx}.npy'), final_agops[idx])
+            # for idx in range(len(agops)):
+            #     final_agops[idx] /= (total_n**2)
+            np.save(os.path.join(out_dir, f'agop.npy'), final_agops[idx])
             np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
 
 def visual_weights(model, epoch_idx):
@@ -186,19 +187,23 @@ def calc_agops(model, inputs, agop_subsample_n, device, normalize=True):
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
     jacs = torch.func.jacfwd(model.forward)(inp_sample)
+    jacs = torch.sum(jacs, dim=(1,2))
+    jacs = jacs.t() @ jacs
+    agops = [jacs.detach().cpu().numpy()]
+    agop_tr = torch.trace(jacs)
     #jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
     #jacs = list(jacs)
-    agop_tr = 0.0
-    agops = []
-    for idx in range(len(jacs)-1):
-        jac = torch.sum(jacs[idx], dim=(1,2))
-        if normalize:
-            jac = jac / inp_sample.size(0)
+#     agop_tr = 0.0
+#     agops = []
+#     for idx in range(len(jacs)):
+#         jac = torch.sum(jacs[idx], dim=(1,2))
+#         if normalize:
+#             jac = jac / inp_sample.size(0)
 
-        jac = jac.t() @ jac
-        agops.append(jac.detach().cpu().numpy())
-        # jac = jac / torch.max(jac)
-        agop_tr += torch.trace(jac)
+#         jac = jac.t() @ jac
+#         agops.append(jac.detach().cpu().numpy())
+#         # jac = jac / torch.max(jac)
+#         agop_tr += torch.trace(jac)
 
     return agop_tr, agops
 
@@ -234,10 +239,11 @@ def train(model, train_loader, optimizer, scheduler,
         # Forward pass
         # output = model(inputs)
         #output, hid = model(inputs, return_hid=True)
-        hid = model(inputs)
-        output = hid[-1]
-        for idx in range(len(hid)):
-            hid[idx].requires_grad_(True)
+        output = model(inputs)
+        output.requires_grad_(True)
+        # output = hid[-1]
+        # for idx in range(len(hid)):
+        #     hid[idx].requires_grad_(True)
 
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
@@ -300,7 +306,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
         # Forward pass
         with torch.no_grad():
             output = model(inputs)
-            output = output[-1]
+            # output = output[-1]
             correct += (torch.argmax(output, dim=1) == labels).sum()
 
             if loss_arg == 'mse':

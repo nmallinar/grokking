@@ -41,14 +41,17 @@ class FCN(torch.nn.Module):
     self.layers = nn.Sequential(*layers)
 
   def forward(self, x: Tensor, return_hid=False):
-    hid = [x]
     for layer in self.layers:
         x = layer(x)
-        # hid.append(x)
-        if isinstance(layer, nn.ReLU):
-           hid.append(x)
-    hid.append(x) # append output states
-    return tuple(hid)
+    return x
+    # hid = [x]
+    # for layer in self.layers:
+    #     x = layer(x)
+    #     # hid.append(x)
+    #     if isinstance(layer, nn.ReLU):
+    #        hid.append(x)
+    # hid.append(x) # append output states
+    # return tuple(hid)
     #hid = [x]
     #for layer in self.layers[2:]:
     #    x = layer(x)
