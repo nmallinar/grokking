@@ -24,7 +24,8 @@ def main(args: dict):
     else:
         mode = 'online'
 
-    wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args)
+    wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args,
+               dir=os.path.join(args.out_dir, 'wandb'))
     # TODO: add wandb name
     wandb.run.name = f'{wandb.run.id} - agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
     wandb.run.save()

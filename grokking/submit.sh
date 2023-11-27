@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -J nmallina-grokking          # Job name
-#SBATCH -o logs/nmallina-grokking.%j.log   # define stdout filename; %j expands to jobid; to redirect stderr elsewhere, duplicate this line with -e instead
+#SBATCH -o /scratch/bbjr/mallina1/grokking_output/logs/nmallina-grokking.%j.log   # define stdout filename; %j expands to jobid; to redirect stderr elsewhere, duplicate this line with -e instead
 #
 #SBATCH --mail-user=nmallina@ucsd.edu
 #SBATCH --mail-type=FAIL,TIME_LIMIT # get notified via email on job failure or time limit reached
