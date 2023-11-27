@@ -10,7 +10,7 @@ import torchvision
 import matplotlib.pyplot as plt
 
 from data import get_data
-from model import Transformer, FCN
+from model import Transformer, TwoLayerFCN, FCN
 import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
@@ -76,8 +76,23 @@ def main(args: dict):
             hidden_width=config.fcn_hidden_width,
             context_len=context_len
         ).to(device)
+    elif config.model == 'TwoLayerFCN':
+        embedding_layer = nn.Embedding(num_tokens, config.dim_model)
+        embedding_layer.requires_grad_(False)
+        embedding_layer = embedding_layer.to(device)
+
+        model = TwoLayerFCN(
+            dim_model=config.dim_model,
+            num_tokens=num_tokens,
+            hidden_width=config.fcn_hidden_width,
+            context_len=context_len
+        ).to(device)
     elif config.model == 'rfm':
         embedding_layer = nn.Embedding(num_tokens, config.dim_model)
+        emb_state = np.load('grokking_outputs/proper/embedding_layer.npy')
+        embedding_layer.load_state_dict({
+            'weight': torch.Tensor(emb_state)
+        })
         embedding_layer.requires_grad_(False)
         rfm_main(num_tokens, config.dim_model,
                  train_loader, val_loader,
@@ -113,6 +128,8 @@ def main(args: dict):
 
     # viz_indices = [0, 1, 2, 3, 4, 5, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
+    np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
+
     for epoch in tqdm(range(num_epochs)):
         if epoch in viz_indices:
             visual_weights(model, epoch)
@@ -132,24 +149,33 @@ def main(args: dict):
                 batch = tuple(t.to(device) for t in batch)
                 # Unpack the batch from the loader
                 inputs, labels = batch
-                total_n += inputs.size(0)
 
                 if embedding_layer is not None:
                     inputs = embedding_layer(inputs)
                     inputs = inputs.view(inputs.size(0), -1)
 
-                _, agops = calc_agops(model, inputs, config.agop_subsample_n, device, normalize=False)
-                np.save(os.path.join(out_dir, f' batch_agop_{idx}.npy'), agops[0])
-                if idx == 0:
-                    for agop in agops:
-                        final_agops.append(agop)
+                if config.agop_subsample_n <= 0:
+                    nsamps = len(inputs)
                 else:
-                    for idx in range(len(agops)):
-                        final_agops[idx] += agops[idx]
-            # for idx in range(len(agops)):
-            #     final_agops[idx] /= (total_n**2)
-            np.save(os.path.join(out_dir, f'agop.npy'), final_agops[idx])
-            np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
+                    nsamps = config.agop_subsample_n
+
+                total_n += nsamps
+                dumb1 = torch.zeros((nsamps, model.inp_dim))
+                dumb2 = torch.zeros((nsamps, model.hidden_width))
+                dumb3 = torch.zeros((nsamps, model.hidden_width))
+
+                _, agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, config.agop_subsample_n, device)
+                for jdx in range(len(agops)):
+                    if idx == 0:
+                        final_agops.append(agops[jdx]*nsamps)
+                    else:
+                        final_agops[jdx] += agops[jdx]*nsamps
+                    np.save(os.path.join(out_dir, f'ep_{epoch}_batch_{idx}_agop_{jdx}.npy'), agops[jdx])
+
+            for jdx, agop in enumerate(final_agops):
+                np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop / total_n)
+            nfm = model.fc1.weight.t() @ model.fc1.weight
+            np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
 
 def visual_weights(model, epoch_idx):
     params = dict(model.named_parameters())
@@ -175,7 +201,7 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra": wandb.Image(plt)})
 
-def calc_agops(model, inputs, agop_subsample_n, device, normalize=True):
+def calc_agops(model, inputs, dumb1, dumb2, dumb3, agop_subsample_n, device):
     if agop_subsample_n > 0:
         indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
         inp_sample = inputs[indices]
@@ -186,24 +212,15 @@ def calc_agops(model, inputs, agop_subsample_n, device, normalize=True):
     # tradeoffs depending on layer and batch sizes, but they can be
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
-    jacs = torch.func.jacfwd(model.forward)(inp_sample)
-    jacs = torch.sum(jacs, dim=(1,2))
-    jacs = jacs.t() @ jacs
-    agops = [jacs.detach().cpu().numpy()]
-    agop_tr = torch.trace(jacs)
-    #jacs = torch.autograd.functional.jacobian(model, inp_sample, create_graph=True)
-    #jacs = list(jacs)
-#     agop_tr = 0.0
-#     agops = []
-#     for idx in range(len(jacs)):
-#         jac = torch.sum(jacs[idx], dim=(1,2))
-#         if normalize:
-#             jac = jac / inp_sample.size(0)
+    jacs = torch.func.jacfwd(model.forward, argnums=(0, 1, 2, 3))(inp_sample, dumb1, dumb2, dumb3)
 
-#         jac = jac.t() @ jac
-#         agops.append(jac.detach().cpu().numpy())
-#         # jac = jac / torch.max(jac)
-#         agop_tr += torch.trace(jac)
+    agop_tr = 0.0
+    agops = []
+    for idx in range(len(jacs)):
+        jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
+        agop = jacs[idx] @ jacs[idx].t() / len(inp_sample)
+        agop_tr += torch.trace(agop)
+        agops.append(agop.detach().cpu().numpy())
 
     return agop_tr, agops
 
@@ -233,17 +250,22 @@ def train(model, train_loader, optimizer, scheduler,
             inputs = embedding_layer(inputs)
             inputs = inputs.view(inputs.size(0), -1)
 
+        if agop_subsample_n <= 0:
+            nsamps = len(inputs)
+        else:
+            nsamps = agop_subsample_n
+
+        dumb1 = torch.zeros((nsamps, model.inp_dim))
+        dumb2 = torch.zeros((nsamps, model.hidden_width))
+        dumb3 = torch.zeros((nsamps, model.hidden_width))
+
         # Zero gradient buffers
         optimizer.zero_grad()
 
         # Forward pass
-        # output = model(inputs)
-        #output, hid = model(inputs, return_hid=True)
         output = model(inputs)
-        output.requires_grad_(True)
-        # output = hid[-1]
-        # for idx in range(len(hid)):
-        #     hid[idx].requires_grad_(True)
+        # output.requires_grad_(True)
+        agop_tr, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, agop_subsample_n, device)
 
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
@@ -252,10 +274,8 @@ def train(model, train_loader, optimizer, scheduler,
         loss = criterion(output, labels)
 
         # Backward pass
-        #loss.backward(retain_graph=True)
         mse_loss = loss.clone()
 
-        agop_tr, _ = calc_agops(model, inputs, agop_subsample_n, device)
         if agop_weight > 0:
             loss += agop_weight * agop_tr
 
@@ -306,7 +326,6 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
         # Forward pass
         with torch.no_grad():
             output = model(inputs)
-            # output = output[-1]
             correct += (torch.argmax(output, dim=1) == labels).sum()
 
             if loss_arg == 'mse':

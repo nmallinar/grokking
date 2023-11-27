@@ -24,6 +24,30 @@ class FCNEmbedded(torch.nn.Module):
   def forward(self, x: Tensor):
     return self.layers(x)
 
+class TwoLayerFCN(torch.nn.Module):
+  def __init__(self, dim_model: int, num_tokens: int, hidden_width: int, context_len: int):
+    super().__init__()
+
+    self.num_tokens = num_tokens
+    inp_dim = dim_model * context_len
+    self.inp_dim = inp_dim
+    self.hidden_width = hidden_width
+
+    self.fc1 = nn.Linear(inp_dim, hidden_width, bias=False)
+    self.fc2 = nn.Linear(hidden_width, hidden_width, bias=False)
+    self.out = nn.Linear(hidden_width, num_tokens, bias=False)
+
+  def forward(self, x, dumb1=None, dumb2=None, dumb3=None):
+      if dumb1 is None:
+          x = F.relu(self.fc1(x))
+          x = F.relu(self.fc2(x))
+          return self.out(x)
+
+      x = F.relu(self.fc1(x) + dumb1 @ self.fc1.weight.t())
+      x = F.relu(self.fc2(x) + dumb2 @ self.fc2.weight.t())
+      x = self.out(x) + dumb3 @ self.out.weight.t()
+      return x
+
 class FCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
     super().__init__()
@@ -40,26 +64,10 @@ class FCN(torch.nn.Module):
     layers.append(nn.Linear(inp_dim, num_tokens, bias=False))
     self.layers = nn.Sequential(*layers)
 
-  def forward(self, x: Tensor, return_hid=False):
+  def forward(self, x: Tensor):
     for layer in self.layers:
         x = layer(x)
     return x
-    # hid = [x]
-    # for layer in self.layers:
-    #     x = layer(x)
-    #     # hid.append(x)
-    #     if isinstance(layer, nn.ReLU):
-    #        hid.append(x)
-    # hid.append(x) # append output states
-    # return tuple(hid)
-    #hid = [x]
-    #for layer in self.layers[2:]:
-    #    x = layer(x)
-    #    hid.append(x)
-    #return tuple(hid)
-    # if return_hid:
-    #     return hid
-    # return x
 
 class OldFCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, num_layers: int, hidden_width: int, context_len: int):
