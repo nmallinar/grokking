@@ -129,6 +129,7 @@ def main(args: dict):
 
     # viz_indices = [0, 1, 2, 3, 4, 5, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
+    val_save_freq = 500
     np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
 
     for epoch in tqdm(range(num_epochs)):
@@ -142,7 +143,7 @@ def main(args: dict):
               agop_subsample_n=config.agop_subsample_n)
         val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, embedding_layer=embedding_layer)
 
-        if val_acc == 1.0:
+        if val_acc >= 0.98 and epoch % val_save_freq == 0:
             final_agops = []
             total_n = 0
             for idx, batch in enumerate(train_loader):
