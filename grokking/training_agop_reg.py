@@ -25,7 +25,7 @@ def main(args: dict):
         mode = 'online'
 
     wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args,
-               dir=os.path.join(args.out_dir, 'wandb'))
+               dir=args.out_dir)
     # TODO: add wandb name
     wandb.run.name = f'{wandb.run.id} - agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
     wandb.run.save()
@@ -161,9 +161,9 @@ def main(args: dict):
                     nsamps = config.agop_subsample_n
 
                 total_n += nsamps
-                dumb1 = torch.zeros((nsamps, model.inp_dim))
-                dumb2 = torch.zeros((nsamps, model.hidden_width))
-                dumb3 = torch.zeros((nsamps, model.hidden_width))
+                dumb1 = torch.zeros((nsamps, model.inp_dim)).to(device)
+                dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
+                dumb3 = torch.zeros((nsamps, model.hidden_width)).to(device)
 
                 _, agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, config.agop_subsample_n, device)
                 for jdx in range(len(agops)):
@@ -179,9 +179,11 @@ def main(args: dict):
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
 
 def visual_weights(model, epoch_idx):
-    params = dict(model.named_parameters())
+    #params = dict(model.named_parameters())
     # [d, h] weights
-    w0 = params['layers.0.weight']
+
+    #w0 = params['layers.0.weight']
+    w0 = model.fc1.weight.t()
     w0w0t = w0 @ w0.T
     w0w0t = w0w0t.unsqueeze(0).unsqueeze(0)
     w0w0t = torchvision.utils.make_grid(w0w0t)
@@ -213,13 +215,14 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, agop_subsample_n, device):
     # tradeoffs depending on layer and batch sizes, but they can be
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
-    jacs = torch.func.jacfwd(model.forward, argnums=(0, 1, 2, 3))(inp_sample, dumb1, dumb2, dumb3)
+    jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3))(inp_sample, dumb1, dumb2, dumb3)
+    jacs = list(jacs)
 
     agop_tr = 0.0
     agops = []
     for idx in range(len(jacs)):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
-        agop = jacs[idx] @ jacs[idx].t() / len(inp_sample)
+        agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
         agop_tr += torch.trace(agop)
         agops.append(agop.detach().cpu().numpy())
 
@@ -256,9 +259,9 @@ def train(model, train_loader, optimizer, scheduler,
         else:
             nsamps = agop_subsample_n
 
-        dumb1 = torch.zeros((nsamps, model.inp_dim))
-        dumb2 = torch.zeros((nsamps, model.hidden_width))
-        dumb3 = torch.zeros((nsamps, model.hidden_width))
+        dumb1 = torch.zeros((nsamps, model.inp_dim)).to(device)
+        dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
+        dumb3 = torch.zeros((nsamps, model.hidden_width)).to(device)
 
         # Zero gradient buffers
         optimizer.zero_grad()

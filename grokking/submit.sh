@@ -8,12 +8,12 @@
 #SBATCH --account bbjr-delta-gpu
 #SBATCH --partition gpuA100x4         # specify queue, if this doesnt submit try gpu-shared
 #SBATCH --gpus-per-node 1
-#SBATCH --cpus-per-task 4
-#SBATCH --mem 8G
+#SBATCH --cpus-per-task 8
+#SBATCH --mem 16G
 #SBATCH --nodes 1
 #SBATCH --tasks 1
 #SBATCH --tasks-per-node 1
-#SBATCH -t 24:00:00       # set maximum run time in H:M:S
+#SBATCH -t 02:00:00       # set maximum run time in H:M:S
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 source /projects/bbjr/mallina1/envs/torch2/bin/activate
@@ -28,7 +28,7 @@ python cli.py \
   --eval_entk -1 \
   --num_layers 1 \
   --weight_decay 0.0 \
-  --agop_weight 1.0 \
+  --agop_weight 100.0 \
   --wandb_proj_name "nov27-grokking" \
   --agop_subsample_n -1 \
   --learning_rate 1e-3 \

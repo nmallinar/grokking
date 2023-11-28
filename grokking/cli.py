@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=1)
     parser.add_argument("--num_steps", type=int, default=1e5)
     parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--model", type=str, default='fcn', choices={'fcn', 'transformer', 'rfm', 'rfm_fcn'})
+    parser.add_argument("--model", type=str, default='fcn', choices={'fcn', 'transformer', 'rfm', 'rfm_fcn', 'TwoLayerFCN'})
     parser.add_argument("--fcn_hidden_width", type=int, default=512)
     parser.add_argument("--loss", type=str, default='mse', choices={'cross_entropy', 'mse'})
     parser.add_argument("--kernel_bandwidth", type=float, default=1.0)
