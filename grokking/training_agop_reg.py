@@ -90,7 +90,7 @@ def main(args: dict):
         ).to(device)
     elif config.model == 'rfm':
         embedding_layer = nn.Embedding(num_tokens, config.dim_model)
-        emb_state = np.load('grokking_outputs/proper/embedding_layer.npy')
+        emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
         embedding_layer.load_state_dict({
             'weight': torch.Tensor(emb_state)
         })
@@ -146,6 +146,8 @@ def main(args: dict):
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             final_agops = []
             total_n = 0
+            final_data = []
+            final_labels = []
             for idx, batch in enumerate(train_loader):
                 # Copy data to device if needed
                 batch = tuple(t.to(device) for t in batch)
@@ -161,6 +163,12 @@ def main(args: dict):
                 else:
                     nsamps = config.agop_subsample_n
 
+                with torch.no_grad():
+                    hid_states = model(inputs, return_hid=True)
+
+                final_data.append(hid_states.detach().cpu())
+                final_labels.append(labels.detach().cpu())
+
                 total_n += nsamps
                 dumb1 = torch.zeros((nsamps, model.inp_dim)).to(device)
                 dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
@@ -172,12 +180,42 @@ def main(args: dict):
                         final_agops.append(agops[jdx]*nsamps)
                     else:
                         final_agops[jdx] += agops[jdx]*nsamps
-                    np.save(os.path.join(out_dir, f'ep_{epoch}_batch_{idx}_agop_{jdx}.npy'), agops[jdx])
+                    # np.save(os.path.join(out_dir, f'ep_{epoch}_batch_{idx}_agop_{jdx}.npy'), agops[jdx])
 
             for jdx, agop in enumerate(final_agops):
                 np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop / total_n)
             nfm = model.fc1.weight.t() @ model.fc1.weight
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
+            final_data = torch.stack(final_data)
+            final_labels = torch.stack(final_labels)
+            np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy', final_data.numpy()))
+            np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy', final_labels.numpy()))
+
+            final_data = []
+            final_labels = []
+            for batch in val_loader:
+                # Copy data to device if needed
+                batch = tuple(t.to(device) for t in batch)
+
+                # Unpack the batch from the loader
+                inputs, labels = batch
+
+                if embedding_layer is not None:
+                    inputs = embedding_layer(inputs)
+                    inputs = inputs.view(inputs.size(0), -1)
+
+                # Forward pass
+                with torch.no_grad():
+                    hid_states = model(inputs, return_hid=True)
+
+                final_data.append(hid_states.detach().cpu())
+                final_labels.append(labels.detach().cpu())
+
+            final_data = torch.stack(final_data)
+            final_labels = torch.stack(final_labels)
+            np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy', final_data.numpy()))
+            np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy', final_labels.numpy()))
+
 
 def visual_weights(model, epoch_idx):
     #params = dict(model.named_parameters())
