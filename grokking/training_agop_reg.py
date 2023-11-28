@@ -186,8 +186,8 @@ def main(args: dict):
                 np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop / total_n)
             nfm = model.fc1.weight.t() @ model.fc1.weight
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
-            final_data = torch.stack(final_data)
-            final_labels = torch.stack(final_labels)
+            final_data = torch.cat(final_data, dim=0)
+            final_labels = torch.cat(final_labels, dim=0)
             np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy', final_data.numpy()))
             np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy', final_labels.numpy()))
 
@@ -211,8 +211,8 @@ def main(args: dict):
                 final_data.append(hid_states.detach().cpu())
                 final_labels.append(labels.detach().cpu())
 
-            final_data = torch.stack(final_data)
-            final_labels = torch.stack(final_labels)
+            final_data = torch.cat(final_data, dim=0)
+            final_labels = torch.cat(final_labels, dim=0)
             np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy', final_data.numpy()))
             np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy', final_labels.numpy()))
 
