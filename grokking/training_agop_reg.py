@@ -158,6 +158,9 @@ def main(args: dict):
                 if embedding_layer is not None:
                     inputs = embedding_layer(inputs)
                     inputs = inputs.view(inputs.size(0), -1)
+                else:
+                    inputs = F.one_hot(inputs, num_tokens).float()
+                    inputs = inputs.view(inputs.size(0), -1)
 
                 if config.agop_subsample_n <= 0:
                     nsamps = len(inputs)
@@ -189,8 +192,8 @@ def main(args: dict):
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
             final_data = torch.cat(final_data, dim=0)
             final_labels = torch.cat(final_labels, dim=0)
-            np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy', final_data.numpy()))
-            np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy', final_labels.numpy()))
+            np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data.numpy())
+            np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy'), final_labels.numpy())
 
             final_data = []
             final_labels = []
@@ -205,7 +208,7 @@ def main(args: dict):
                     inputs = embedding_layer(inputs)
                     inputs = inputs.view(inputs.size(0), -1)
                 else:
-                    inputs = F.one_hot(inputs, num_tokens)
+                    inputs = F.one_hot(inputs, num_tokens).float()
                     inputs = inputs.view(inputs.size(0), -1)
 
                 # Forward pass
@@ -217,8 +220,8 @@ def main(args: dict):
 
             final_data = torch.cat(final_data, dim=0)
             final_labels = torch.cat(final_labels, dim=0)
-            np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy', final_data.numpy()))
-            np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy', final_labels.numpy()))
+            np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy'), final_data.numpy())
+            np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy'), final_labels.numpy())
 
 
 def visual_weights(model, epoch_idx):
@@ -240,6 +243,7 @@ def visual_weights(model, epoch_idx):
     w0w0t = w0 @ w0.T
     w0w0t = w0w0t.detach().cpu().numpy()
     eigvals, _ = np.linalg.eig(w0w0t)
+    eigvals = np.sort(eigvals)[::-1]
     plt.clf()
     plt.plot(range(len(eigvals)), np.log(eigvals + 1e-12))
     plt.title(f'Epoch {epoch_idx}, eigenvalues of W0 @ W0.T')
@@ -297,7 +301,7 @@ def train(model, train_loader, optimizer, scheduler,
             inputs = embedding_layer(inputs)
             inputs = inputs.view(inputs.size(0), -1)
         else:
-            inputs = F.one_hot(inputs, num_classes)
+            inputs = F.one_hot(inputs, num_classes).float()
             inputs = inputs.view(inputs.size(0), -1)
 
         if agop_subsample_n <= 0:
@@ -373,7 +377,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
             inputs = embedding_layer(inputs)
             inputs = inputs.view(inputs.size(0), -1)
         else:
-            inputs = F.one_hot(inputs, num_classes)
+            inputs = F.one_hot(inputs, num_classes).float()
             inputs = inputs.view(inputs.size(0), -1)
 
         # Forward pass
