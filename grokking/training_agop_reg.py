@@ -89,12 +89,12 @@ def main(args: dict):
             context_len=context_len
         ).to(device)
     elif config.model == 'rfm':
-        # embedding_layer = nn.Embedding(num_tokens, config.dim_model)
-        # emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
-        # embedding_layer.load_state_dict({
-        #     'weight': torch.Tensor(emb_state)
-        # })
-        # embedding_layer.requires_grad_(False)
+        embedding_layer = nn.Embedding(num_tokens, config.dim_model)
+        emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
+        embedding_layer.load_state_dict({
+            'weight': torch.Tensor(emb_state)
+        })
+        embedding_layer.requires_grad_(False)
         rfm_main(num_tokens, config.dim_model,
                  train_loader, val_loader,
                  wandb, config.kernel_bandwidth, embedding_layer,
@@ -147,6 +147,9 @@ def main(args: dict):
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu1')
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='lin2')
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu2')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='M^.5x')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu(M^.5x)')
+
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             final_agops = []

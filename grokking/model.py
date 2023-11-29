@@ -2,6 +2,7 @@ from einops import rearrange, repeat
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
+import scipy
 
 torch.set_default_dtype(torch.float64)
 
@@ -41,6 +42,14 @@ class TwoLayerFCN(torch.nn.Module):
   def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
               return_layer=None):
       if dumb1 is None:
+          if return_layer == 'M^.5x' or return_layer == 'relu(M^.5x)':
+              M = self.fc1.weight.t() @ self.fc1.weight
+              L, V = torch.linalg.eigh(M)
+              sqrtM = V @ torch.diag(torch.sqrt(L)) @ V.T
+              if return_layer == 'M^.5x':
+                  return x @ sqrtM
+              return F.relu(x @ sqrtM)
+
           x = self.fc1(x)
           if return_layer == 'lin1':
               return x
