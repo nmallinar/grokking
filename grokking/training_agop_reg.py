@@ -143,6 +143,7 @@ def main(args: dict):
               agop_weight=config.agop_weight,
               agop_subsample_n=config.agop_subsample_n)
         val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, embedding_layer=embedding_layer)
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer)
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             final_agops = []
@@ -401,3 +402,75 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
     wandb.log(metrics, commit=False)
 
     return acc
+
+def ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=None):
+    # Set model to evaluation mode
+    model.eval()
+    with torch.no_grad():
+
+        all_train_data = []
+        all_train_labels = []
+        for batch in train_loader:
+            # Copy data to device if needed
+            batch = tuple(t.to(device) for t in batch)
+
+            # Unpack the batch from the loader
+            inputs, labels = batch
+
+            if embedding_layer is not None:
+                inputs = embedding_layer(inputs)
+                inputs = inputs.view(inputs.size(0), -1)
+            else:
+                inputs = F.one_hot(inputs, num_classes).float()
+                inputs = inputs.view(inputs.size(0), -1)
+
+            # Forward pass
+            with torch.no_grad():
+                output = model(inputs, return_hid=True)
+                all_train_data.append(output.detach().cpu())
+                all_train_labels.append(labels.detach().cpu())
+
+        all_train_data = torch.cat(all_train_data).numpy()
+        all_train_labels = torch.cat(all_train_labels).numpy()
+
+        all_val_data = []
+        all_val_labels = []
+        # Loop over each batch from the validation set
+        for batch in val_loader:
+            # Copy data to device if needed
+            batch = tuple(t.to(device) for t in batch)
+
+            # Unpack the batch from the loader
+            inputs, labels = batch
+
+            if embedding_layer is not None:
+                inputs = embedding_layer(inputs)
+                inputs = inputs.view(inputs.size(0), -1)
+            else:
+                inputs = F.one_hot(inputs, num_classes).float()
+                inputs = inputs.view(inputs.size(0), -1)
+
+            # Forward pass
+            with torch.no_grad():
+                output = model(inputs, return_hid=True)
+                all_val_data.append(output.detach().cpu())
+                all_val_labels.append(labels.detach().cpu())
+
+        all_val_labels = torch.cat(all_val_labels).numpy()
+        all_val_data = torch.cat(all_val_data).numpy()
+
+        sol = np.linalg.pinv(all_train_data.T @ all_train_data) @ all_train_data.T @ all_train_labels
+        pred_scores = all_val_data @ sol
+        pred_labels = np.argmax(pred_scores, axis=1)
+
+        mse = np.mean(np.square(pred_scores - all_val_labels))
+        count = np.sum(all_val_labels == pred_labels)
+
+        metrics = {
+            "validation/ols_accuracy": count / len(all_val_labels),
+            "validation/ols_loss": mse,
+            "epoch": epoch
+        }
+        wandb.log(metrics, commit=False)
+
+        return count / len(all_val_labels)
