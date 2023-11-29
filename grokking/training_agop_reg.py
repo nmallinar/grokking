@@ -78,9 +78,9 @@ def main(args: dict):
             context_len=context_len
         ).to(device)
     elif config.model == 'TwoLayerFCN':
-        embedding_layer = nn.Embedding(num_tokens, config.dim_model)
-        embedding_layer.requires_grad_(False)
-        embedding_layer = embedding_layer.to(device)
+        # embedding_layer = nn.Embedding(num_tokens, config.dim_model)
+        # embedding_layer.requires_grad_(False)
+        # embedding_layer = embedding_layer.to(device)
 
         model = TwoLayerFCN(
             dim_model=config.dim_model,
@@ -89,12 +89,12 @@ def main(args: dict):
             context_len=context_len
         ).to(device)
     elif config.model == 'rfm':
-        embedding_layer = nn.Embedding(num_tokens, config.dim_model)
-        emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
-        embedding_layer.load_state_dict({
-            'weight': torch.Tensor(emb_state)
-        })
-        embedding_layer.requires_grad_(False)
+        # embedding_layer = nn.Embedding(num_tokens, config.dim_model)
+        # emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
+        # embedding_layer.load_state_dict({
+        #     'weight': torch.Tensor(emb_state)
+        # })
+        # embedding_layer.requires_grad_(False)
         rfm_main(num_tokens, config.dim_model,
                  train_loader, val_loader,
                  wandb, config.kernel_bandwidth, embedding_layer,
@@ -127,7 +127,6 @@ def main(args: dict):
 
     num_epochs = ceil(config.num_steps / len(train_loader))
 
-    # viz_indices = [0, 1, 2, 3, 4, 5, 10, 50, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     val_save_freq = 500
     np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
@@ -202,6 +201,9 @@ def main(args: dict):
 
                 if embedding_layer is not None:
                     inputs = embedding_layer(inputs)
+                    inputs = inputs.view(inputs.size(0), -1)
+                else:
+                    inputs = F.one_hot(inputs, num_tokens)
                     inputs = inputs.view(inputs.size(0), -1)
 
                 # Forward pass
@@ -292,6 +294,9 @@ def train(model, train_loader, optimizer, scheduler,
             #inputs = F.one_hot(inputs.long(), num_classes=num_classes)
             inputs = embedding_layer(inputs)
             inputs = inputs.view(inputs.size(0), -1)
+        else:
+            inputs = F.one_hot(inputs, num_classes)
+            inputs = inputs.view(inputs.size(0), -1)
 
         if agop_subsample_n <= 0:
             nsamps = len(inputs)
@@ -364,6 +369,9 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
 
         if embedding_layer is not None:
             inputs = embedding_layer(inputs)
+            inputs = inputs.view(inputs.size(0), -1)
+        else:
+            inputs = F.one_hot(inputs, num_classes)
             inputs = inputs.view(inputs.size(0), -1)
 
         # Forward pass

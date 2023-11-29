@@ -60,20 +60,3 @@ def get_data(operation: str, prime: int, training_fraction: float, batch_size: i
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 
     return train_loader, val_loader, context_len, train_dataset, val_dataset
-
-# def get_data_rfm(operation: str, prime: int, training_fraction: float, batch_size: int):
-#     inputs, labels = operation_mod_p_data(operation, prime, prime, prime+1)
-#     dataset = torch.utils.data.TensorDataset(inputs, labels)
-#     context_len = inputs.shape[1]
-#
-#     train_size = int(training_fraction * len(dataset))
-#     val_size = len(dataset) - train_size
-#
-#     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
-#
-#     batch_size = min(batch_size, ceil(len(dataset) / 2))
-#
-#     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-#     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
-#
-#     return train_loader, val_loader, context_len
