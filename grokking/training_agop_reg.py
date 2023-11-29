@@ -143,8 +143,10 @@ def main(args: dict):
               agop_weight=config.agop_weight,
               agop_subsample_n=config.agop_subsample_n)
         val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, embedding_layer=embedding_layer)
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer)
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, is_hid2=True)
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='lin1')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu1')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='lin2')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu2')
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             final_agops = []
@@ -404,7 +406,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
 
     return acc
 
-def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embedding_layer=None, is_hid2=False):
+def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embedding_layer=None, return_layer=None):
     # Set model to evaluation mode
     model.eval()
     with torch.no_grad():
@@ -427,10 +429,7 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embed
 
             # Forward pass
             with torch.no_grad():
-                if is_hid2:
-                    output = model(inputs, return_hid2=True)
-                else:
-                    output = model(inputs, return_hid=True)
+                output = model(inputs, return_layer=return_layer)
                 all_train_data.append(output.detach().cpu())
                 all_train_labels.append(labels.detach().cpu())
 
@@ -456,11 +455,7 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embed
 
             # Forward pass
             with torch.no_grad():
-                if is_hid2:
-                    output = model(inputs, return_hid2=True)
-                else:
-                    output = model(inputs, return_hid=True)
-                # output = model(inputs, return_hid=True)
+                output = model(inputs, return_layer=return_layer)
                 all_val_data.append(output.detach().cpu())
                 all_val_labels.append(labels.detach().cpu())
 
@@ -474,19 +469,11 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embed
         mse = np.mean(np.square(pred_scores - F.one_hot(all_val_labels, num_classes).numpy()))
         count = np.sum(all_val_labels.numpy() == pred_labels)
 
-        if is_hid2:
-            metrics = {
-                "validation/ols_layer1_accuracy": count / len(all_val_labels),
-                "validation/ols_layer1_loss": mse,
-                "epoch": epoch
-            }
-            wandb.log(metrics, commit=False)
-        else:
-            metrics = {
-                "validation/ols_layer2_accuracy": count / len(all_val_labels),
-                "validation/ols_layer2_loss": mse,
-                "epoch": epoch
-            }
-            wandb.log(metrics, commit=False)
+        metrics = {
+            f"validation/ols_{return_layer}_accuracy": count / len(all_val_labels),
+            f"validation/ols_{return_layer}_loss": mse,
+            "epoch": epoch
+        }
+        wandb.log(metrics, commit=False)
 
         return count / len(all_val_labels)

@@ -38,22 +38,26 @@ class TwoLayerFCN(torch.nn.Module):
     self.fc2 = nn.Linear(hidden_width, hidden_width, bias=False)
     self.out = nn.Linear(hidden_width, num_tokens, bias=False)
 
-  def forward(self, x, dumb1=None, dumb2=None, dumb3=None, return_hid=False, return_hid2=False):
+  def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
+              return_layer=None):
       if dumb1 is None:
-          x = F.relu(self.fc1(x))
-          if return_hid2:
+          x = self.fc1(x)
+          if return_layer == 'lin1':
               return x
-          x = F.relu(self.fc2(x))
-          if return_hid:
+          x = F.relu(x)
+          if return_layer == 'relu1':
               return x
+          x = self.fc2(x)
+          if return_layer == 'lin2':
+              return x
+          x = F.relu(x)
+          if return_layer == 'relu2':
+              return x
+
           return self.out(x)
 
       x = F.relu(self.fc1(x) + dumb1 @ self.fc1.weight.t())
-      if return_hid2:
-          return x
       x = F.relu(self.fc2(x) + dumb2 @ self.fc2.weight.t())
-      if return_hid:
-          return x
       x = self.out(x) + dumb3 @ self.out.weight.t()
       return x
 
