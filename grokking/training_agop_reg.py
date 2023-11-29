@@ -175,7 +175,7 @@ def main(args: dict):
                     nsamps = config.agop_subsample_n
 
                 with torch.no_grad():
-                    hid_states = model(inputs, return_hid=True)
+                    hid_states = model(inputs, return_layer='relu1')
 
                 final_data.append(hid_states.detach().cpu())
                 final_labels.append(labels.detach().cpu())
@@ -220,7 +220,7 @@ def main(args: dict):
 
                 # Forward pass
                 with torch.no_grad():
-                    hid_states = model(inputs, return_hid=True)
+                    hid_states = model(inputs, return_layer='relu1')
 
                 final_data.append(hid_states.detach().cpu())
                 final_labels.append(labels.detach().cpu())
