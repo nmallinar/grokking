@@ -403,7 +403,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
 
     return acc
 
-def ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=None):
+def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embedding_layer=None):
     # Set model to evaluation mode
     model.eval()
     with torch.no_grad():
@@ -431,7 +431,7 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedd
                 all_train_labels.append(labels.detach().cpu())
 
         all_train_data = torch.cat(all_train_data).numpy()
-        all_train_labels = torch.cat(all_train_labels).numpy()
+        all_train_labels = torch.cat(all_train_labels)
 
         all_val_data = []
         all_val_labels = []
@@ -456,15 +456,15 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedd
                 all_val_data.append(output.detach().cpu())
                 all_val_labels.append(labels.detach().cpu())
 
-        all_val_labels = torch.cat(all_val_labels).numpy()
+        all_val_labels = torch.cat(all_val_labels)
         all_val_data = torch.cat(all_val_data).numpy()
 
-        sol = np.linalg.pinv(all_train_data.T @ all_train_data) @ all_train_data.T @ all_train_labels
+        sol = np.linalg.pinv(all_train_data.T @ all_train_data) @ all_train_data.T @ F.one_hot(all_train_labels, num_classes).numpy()
         pred_scores = all_val_data @ sol
         pred_labels = np.argmax(pred_scores, axis=1)
 
-        mse = np.mean(np.square(pred_scores - all_val_labels))
-        count = np.sum(all_val_labels == pred_labels)
+        mse = np.mean(np.square(pred_scores - F.one_hot(all_val_labels, num_classes).numpy()))
+        count = np.sum(all_val_labels.numpy() == pred_labels)
 
         metrics = {
             "validation/ols_accuracy": count / len(all_val_labels),
