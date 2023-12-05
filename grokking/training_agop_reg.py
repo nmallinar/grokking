@@ -189,6 +189,19 @@ def main(args: dict):
 
             for jdx, agop in enumerate(final_agops):
                 np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop / total_n)
+                img = wandb.Image(
+                    agop / total_n,
+                    caption=f'Epoch {epoch} AGOP {jdx}'
+                )
+                img_dft = wandb.Image(
+                    np.real(np.fft.fft2(agop / total_n)),
+                    caption=f'Epoch {epoch} Re(FFT2(AGOP {jdx}))'
+                )
+                wandb.log(
+                    f"agop_{jdx}": img,
+                    f"fft2_agop_{jdx}": img_dft
+                )
+
             nfm = model.fc1.weight.t() @ model.fc1.weight
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
             final_data = torch.cat(final_data, dim=0)
@@ -231,18 +244,39 @@ def visual_weights(model, epoch_idx):
 
     #w0 = params['layers.0.weight']
     w0 = model.fc1.weight.t()
+    # w0: [d, h]
     w0w0t = w0 @ w0.T
     w0w0t = w0w0t.unsqueeze(0).unsqueeze(0)
     w0w0t = torchvision.utils.make_grid(w0w0t)
+    w0w0t = w0w0t.detach().cpu().numpy()
+    w0tw0 = w0.T @ w0
+    w0tw0 = w0w0t.unsqueeze(0).unsqueeze(0)
+    w0tw0 = torchvision.utils.make_grid(w0tw0)
+    w0tw0 = w0tw0.detach().cpu().numpy()
 
     image = wandb.Image(
         w0w0t,
         caption=f"Epoch {epoch_idx}, W0 @ W0.T"
     )
-    wandb.log({"w0_w0.T": image})
+    img_dft = wandb.Image(
+        np.real(np.fft.fft2(w0w0t)),
+        caption=f"Epoch {epoch_idx}, Re(FFT2(W0 @ W0.T))"
+    )
+    img2 = wandb.Image(
+        w0tw0,
+        caption=f"Epoch {epoch_idx}, W0.T @ W0"
+    )
+    img2_dft = wandb.Image(
+        np.real(np.fft.fft2(w0w0t)),
+        caption=f"Epoch {epoch_idx}, Re(FFT2(W0.T @ W0))"
+    )
+    wandb.log({
+        "w0_w0.T": image,
+        "fft2(w0_w0.T)": img_dft,
+        "w0.T_w0": img2,
+        "fft2(w0.T_w0)": img2_dft,
+    })
 
-    w0w0t = w0 @ w0.T
-    w0w0t = w0w0t.detach().cpu().numpy()
     eigvals, _ = np.linalg.eig(w0w0t)
     eigvals = np.sort(eigvals)[::-1]
     plt.clf()
@@ -250,7 +284,16 @@ def visual_weights(model, epoch_idx):
     plt.title(f'Epoch {epoch_idx}, eigenvalues of W0 @ W0.T')
     plt.xlabel('eigenvalue index')
     plt.ylabel('log(eigenvalue)')
-    wandb.log({"spectra": wandb.Image(plt)})
+    wandb.log({"spectra w0_w0t": wandb.Image(plt)})
+
+    eigvals, _ = np.linalg.eig(w0tw0)
+    eigvals = np.sort(eigvals)[::-1]
+    plt.clf()
+    plt.plot(range(len(eigvals)), np.log(eigvals + 1e-12))
+    plt.title(f'Epoch {epoch_idx}, eigenvalues of W0.T @ W0')
+    plt.xlabel('eigenvalue index')
+    plt.ylabel('log(eigenvalue)')
+    wandb.log({"spectra w0t_w0": wandb.Image(plt)})
 
 def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config):
     if agop_subsample_n > 0:
