@@ -189,18 +189,23 @@ def main(args: dict):
 
             for jdx, agop in enumerate(final_agops):
                 np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop / total_n)
+                plt.clf()
+                plt.imshow(agop / total_n)
+                plt.colorbar()
                 img = wandb.Image(
-                    agop / total_n,
+                    plt,
                     caption=f'Epoch {epoch} AGOP {jdx}'
                 )
+                wandb.log({f"agop_{jdx}": img}, commit=False)
+
+                plt.clf()
+                plt.imshow(np.real(np.fft.fft2(agop / total_n)))
+                plt.colorbar()
                 img_dft = wandb.Image(
-                    np.real(np.fft.fft2(agop / total_n)),
+                    plt,
                     caption=f'Epoch {epoch} Re(FFT2(AGOP {jdx}))'
                 )
-                wandb.log({
-                    f"agop_{jdx}": img,
-                    f"fft2_agop_{jdx}": img_dft
-                })
+                wandb.log({f"fft2_agop_{jdx}": img_dft})
 
             nfm = model.fc1.weight.t() @ model.fc1.weight
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
@@ -245,39 +250,51 @@ def visual_weights(model, epoch_idx):
     #w0 = params['layers.0.weight']
     w0 = model.fc1.weight.t()
     # w0: [d, h]
-    import ipdb; ipdb.set_trace()
     w0w0t = w0 @ w0.T
-    w0w0t = w0w0t.unsqueeze(0).unsqueeze(0)
-    w0w0t = torchvision.utils.make_grid(w0w0t)
+    # w0w0t = w0w0t.unsqueeze(0)
+    # w0w0t = torchvision.utils.make_grid(w0w0t)
     w0tw0 = w0.T @ w0
-    w0tw0 = w0tw0.unsqueeze(0).unsqueeze(0)
-    w0tw0 = torchvision.utils.make_grid(w0tw0)
+    # w0tw0 = w0tw0.unsqueeze(0)
+    # w0tw0 = torchvision.utils.make_grid(w0tw0)
 
     w0w0t = w0w0t.detach().cpu().numpy()
     w0tw0 = w0tw0.detach().cpu().numpy()
 
+    plt.clf()
+    plt.imshow(w0w0t)
+    plt.colorbar()
     image = wandb.Image(
-        w0w0t,
+        plt,
         caption=f"Epoch {epoch_idx}, W0 @ W0.T"
     )
+    wandb.log({"w0_w0.T": image}, commit=False)
+
+    plt.clf()
+    plt.imshow(np.real(np.fft.fft2(w0w0t)))
+    plt.colorbar()
     img_dft = wandb.Image(
         np.real(np.fft.fft2(w0w0t)),
         caption=f"Epoch {epoch_idx}, Re(FFT2(W0 @ W0.T))"
     )
+    wandb.log({"fft2(w0_w0.T)": img_dft}, commit=False)
+
+    plt.clf()
+    plt.imshow(w0tw0)
+    plt.colorbar()
     img2 = wandb.Image(
         w0tw0,
         caption=f"Epoch {epoch_idx}, W0.T @ W0"
     )
+    wandb.log({"w0.T_w0": img2}, commit=False)
+
+    plt.clf()
+    plt.imshow(np.real(np.fft.fft2(w0w0t)))
+    plt.colorbar()
     img2_dft = wandb.Image(
         np.real(np.fft.fft2(w0w0t)),
         caption=f"Epoch {epoch_idx}, Re(FFT2(W0.T @ W0))"
     )
-    wandb.log({
-        "w0_w0.T": image,
-        "fft2(w0_w0.T)": img_dft,
-        "w0.T_w0": img2,
-        "fft2(w0.T_w0)": img2_dft,
-    })
+    wandb.log({"fft2(w0.T_w0)": img2_dft}, commit=False)
 
     eigvals, _ = np.linalg.eig(w0w0t)
     eigvals = np.sort(eigvals)[::-1]
