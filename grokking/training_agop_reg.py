@@ -273,7 +273,7 @@ def visual_weights(model, epoch_idx):
     plt.imshow(np.real(np.fft.fft2(w0w0t)))
     plt.colorbar()
     img_dft = wandb.Image(
-        np.real(np.fft.fft2(w0w0t)),
+        plt,
         caption=f"Epoch {epoch_idx}, Re(FFT2(W0 @ W0.T))"
     )
     wandb.log({"fft2(w0_w0.T)": img_dft}, commit=False)
@@ -282,7 +282,7 @@ def visual_weights(model, epoch_idx):
     plt.imshow(w0tw0)
     plt.colorbar()
     img2 = wandb.Image(
-        w0tw0,
+        plt,
         caption=f"Epoch {epoch_idx}, W0.T @ W0"
     )
     wandb.log({"w0.T_w0": img2}, commit=False)
@@ -291,7 +291,7 @@ def visual_weights(model, epoch_idx):
     plt.imshow(np.real(np.fft.fft2(w0w0t)))
     plt.colorbar()
     img2_dft = wandb.Image(
-        np.real(np.fft.fft2(w0w0t)),
+        plt,
         caption=f"Epoch {epoch_idx}, Re(FFT2(W0.T @ W0))"
     )
     wandb.log({"fft2(w0.T_w0)": img2_dft}, commit=False)
