@@ -27,7 +27,7 @@ def main(args: dict):
     wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args,
                dir=args.out_dir)
     # TODO: add wandb name
-    wandb.run.name = f'{wandb.run.id} - act_fn={args.act_fn}, agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
+    wandb.run.name = f'{wandb.run.id} - {args.model} act_fn={args.act_fn}, agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}'
     wandb.run.save()
 
     out_dir = os.path.join(args.out_dir, args.wandb_proj_name, wandb.run.id)
