@@ -27,7 +27,7 @@ def main(args: dict):
     wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args,
                dir=args.out_dir)
     # TODO: add wandb name
-    wandb.run.name = f'{wandb.run.id} - agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
+    wandb.run.name = f'{wandb.run.id} - act_fn={args.act_fn}, agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}, n_layers={args.num_layers}'
     wandb.run.save()
 
     out_dir = os.path.join(args.out_dir, args.wandb_proj_name, wandb.run.id)
@@ -138,17 +138,17 @@ def main(args: dict):
             visual_weights(model, epoch)
 
         train(model, train_loader, optimizer, scheduler, device,
-              config.num_steps, num_tokens, args.loss,
+              config.num_steps, num_tokens, args.loss, config,
               embedding_layer=embedding_layer,
               agop_weight=config.agop_weight,
               agop_subsample_n=config.agop_subsample_n)
-        val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, embedding_layer=embedding_layer)
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='lin1')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu1')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='lin2')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu2')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='M^.5x')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, embedding_layer=embedding_layer, return_layer='relu(M^.5x)')
+        val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='relu1')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin2')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='relu2')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='M^.5x')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='relu(M^.5x)')
 
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
@@ -175,7 +175,7 @@ def main(args: dict):
                     nsamps = config.agop_subsample_n
 
                 with torch.no_grad():
-                    hid_states = model(inputs, return_layer='relu1')
+                    hid_states = model(inputs, return_layer='act_fn(lin1)', act=config.act_fn)
 
                 final_data.append(hid_states.detach().cpu())
                 final_labels.append(labels.detach().cpu())
@@ -189,7 +189,7 @@ def main(args: dict):
                 dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
                 dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
 
-                _, agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, device)
+                _, agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, device, config)
                 for jdx in range(len(agops)):
                     if idx == 0:
                         final_agops.append(agops[jdx]*nsamps)
@@ -224,7 +224,7 @@ def main(args: dict):
 
                 # Forward pass
                 with torch.no_grad():
-                    hid_states = model(inputs, return_layer='relu1')
+                    hid_states = model(inputs, return_layer='act_fn(lin1)', act=config.act_fn)
 
                 final_data.append(hid_states.detach().cpu())
                 final_labels.append(labels.detach().cpu())
@@ -262,7 +262,7 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra": wandb.Image(plt)})
 
-def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device):
+def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config):
     if agop_subsample_n > 0:
         indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
         inp_sample = inputs[indices]
@@ -273,7 +273,7 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
     # tradeoffs depending on layer and batch sizes, but they can be
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
-    jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5, 6))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6)
+    jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5, 6))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
     jacs = list(jacs)
 
     weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
@@ -282,11 +282,11 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
     agops = []
     for idx in range(3):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
-        agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)  
+        agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
         agop_tr += torch.trace(agop)
         agop = agop.detach().cpu().numpy()
         agops.append(agop)
-        
+
         if idx != 2:
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()
@@ -308,7 +308,7 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
     return agop_tr, agops
 
 def train(model, train_loader, optimizer, scheduler,
-          device, num_steps, num_classes, loss_arg,
+          device, num_steps, num_classes, loss_arg, config,
           embedding_layer=None, agop_weight=0.0,
           agop_subsample_n=-1):
     # Set model to training mode
@@ -353,9 +353,9 @@ def train(model, train_loader, optimizer, scheduler,
         optimizer.zero_grad()
 
         # Forward pass
-        output = model(inputs)
+        output = model(inputs, act=config.act_fn)
         # output.requires_grad_(True)
-        agop_tr, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device)
+        agop_tr, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config)
 
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
@@ -388,7 +388,7 @@ def train(model, train_loader, optimizer, scheduler,
         if wandb.run.step == num_steps:
             return
 
-def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_layer=None):
+def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, config, embedding_layer=None):
     # Set model to evaluation mode
     model.eval()
 
@@ -418,7 +418,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
 
         # Forward pass
         with torch.no_grad():
-            output = model(inputs)
+            output = model(inputs, act=config.act_fn)
             correct += (torch.argmax(output, dim=1) == labels).sum()
 
             if loss_arg == 'mse':
@@ -438,7 +438,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, embedding_
 
     return acc
 
-def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embedding_layer=None, return_layer=None):
+def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, config, embedding_layer=None, return_layer=None):
     # Set model to evaluation mode
     model.eval()
     with torch.no_grad():
@@ -461,7 +461,7 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embed
 
             # Forward pass
             with torch.no_grad():
-                output = model(inputs, return_layer=return_layer)
+                output = model(inputs, return_layer=return_layer, act=config.act_fn)
                 all_train_data.append(output.detach().cpu())
                 all_train_labels.append(labels.detach().cpu())
 
@@ -487,7 +487,7 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, embed
 
             # Forward pass
             with torch.no_grad():
-                output = model(inputs, return_layer=return_layer)
+                output = model(inputs, return_layer=return_layer, act=config.act_fn)
                 all_val_data.append(output.detach().cpu())
                 all_val_labels.append(labels.detach().cpu())
 

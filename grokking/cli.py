@@ -29,6 +29,7 @@ if __name__ == "__main__":
     parser.add_argument("--kernel_bandwidth", type=float, default=1.0)
     parser.add_argument("--eval_entk", type=int, default=-1)
     parser.add_argument("--out_dir", type=str, default="/scratch/bbjr/mallina1/grokking_output")
+    parser.add_argument("--act_fn", type=str, default="relu")
     args = parser.parse_args()
 
     main(args)

@@ -41,33 +41,38 @@ class TwoLayerFCN(torch.nn.Module):
 
   def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
               dumb4=None, dumb5=None, dumb6=None,
-              return_layer=None):
+              return_layer=None, act='relu'):
+      if act == 'relu':
+          act_fn = F.relu
+      elif act == 'swish':
+          act_fn = F.silu
+
       if dumb1 is None:
-          if return_layer == 'M^.5x' or return_layer == 'relu(M^.5x)':
+          if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
               M = self.fc1.weight.t() @ self.fc1.weight
               L, V = torch.linalg.eigh(M)
               sqrtM = V @ torch.diag(torch.sqrt(L)) @ V.T
               if return_layer == 'M^.5x':
                   return x @ sqrtM
-              return F.relu(x @ sqrtM)
+              return act_fn(x @ sqrtM)
 
           x = self.fc1(x)
           if return_layer == 'lin1':
               return x
-          x = F.relu(x)
-          if return_layer == 'relu1':
+          x = act_fn(x)
+          if return_layer == 'act_fn(lin1)':
               return x
           x = self.fc2(x)
           if return_layer == 'lin2':
               return x
-          x = F.relu(x)
-          if return_layer == 'relu2':
+          x = act_fn(x)
+          if return_layer == 'act_fn(lin2)':
               return x
 
           return self.out(x)
 
-      x = F.relu(self.fc1(x) + dumb1 + dumb4 @ self.fc1.weight.t())
-      x = F.relu(self.fc2(x) + dumb2 + dumb5 @ self.fc2.weight.t())
+      x = act_fn(self.fc1(x) + dumb1 + dumb4 @ self.fc1.weight.t())
+      x = act_fn(self.fc2(x) + dumb2 + dumb5 @ self.fc2.weight.t())
       x = self.out(x) + dumb3 + dumb6 @ self.out.weight.t()
       #x = F.relu(self.fc1(x) + dumb1 @ self.fc1.weight.t())
       #x = F.relu(self.fc2(x) + dumb2 @ self.fc2.weight.t())
