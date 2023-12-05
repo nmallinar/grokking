@@ -44,7 +44,7 @@ class OneLayerFCN(torch.nn.Module):
           act_fn = F.relu
       elif act == 'swish':
           act_fn = F.silu
-      elif act == 'quad2':
+      elif act == 'pow2':
           act_fn = lambda x: torch.pow(x, 2)
 
       if dumb1 is None:
