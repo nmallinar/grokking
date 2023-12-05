@@ -181,11 +181,15 @@ def main(args: dict):
                 final_labels.append(labels.detach().cpu())
 
                 total_n += nsamps
-                dumb1 = torch.zeros((nsamps, model.inp_dim)).to(device)
+                dumb1 = torch.zeros((nsamps, model.hidden_width)).to(device)
                 dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
-                dumb3 = torch.zeros((nsamps, model.hidden_width)).to(device)
+                dumb3 = torch.zeros((nsamps, model.num_tokens)).to(device)
 
-                _, agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, config.agop_subsample_n, device)
+                dumb4 = torch.zeros((nsamps, model.inp_dim)).to(device)
+                dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
+                dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
+
+                _, agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, device)
                 for jdx in range(len(agops)):
                     if idx == 0:
                         final_agops.append(agops[jdx]*nsamps)
@@ -258,7 +262,7 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra": wandb.Image(plt)})
 
-def calc_agops(model, inputs, dumb1, dumb2, dumb3, agop_subsample_n, device):
+def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device):
     if agop_subsample_n > 0:
         indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
         inp_sample = inputs[indices]
@@ -269,16 +273,37 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, agop_subsample_n, device):
     # tradeoffs depending on layer and batch sizes, but they can be
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
-    jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3))(inp_sample, dumb1, dumb2, dumb3)
+    jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5, 6))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6)
     jacs = list(jacs)
+
+    weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
 
     agop_tr = 0.0
     agops = []
-    for idx in range(len(jacs)):
+    for idx in range(3):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
-        agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
+        agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)  
         agop_tr += torch.trace(agop)
-        agops.append(agop.detach().cpu().numpy())
+        agop = agop.detach().cpu().numpy()
+        agops.append(agop)
+        
+        if idx != 2:
+            right_nfm = weights[idx] @ weights[idx].t()
+            right_nfm = right_nfm.cpu().numpy()
+            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
+            wandb.log({
+                f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
+            }, commit=False)
+
+            left_agop = torch.sum(jacs[idx + 3], dim=(1, 2)).reshape(len(inp_sample), -1)
+            left_agop = left_agop.t() @ left_agop / len(inp_sample)
+            left_agop = left_agop.detach().cpu().numpy()
+            left_nfm = weights[idx].t() @ weights[idx]
+            left_nfm = left_nfm.cpu().numpy()
+            corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
+            wandb.log({
+                f'left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
+            }, commit=False)
 
     return agop_tr, agops
 
@@ -316,9 +341,13 @@ def train(model, train_loader, optimizer, scheduler,
         else:
             nsamps = agop_subsample_n
 
-        dumb1 = torch.zeros((nsamps, model.inp_dim)).to(device)
+        dumb1 = torch.zeros((nsamps, model.hidden_width)).to(device)
         dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
-        dumb3 = torch.zeros((nsamps, model.hidden_width)).to(device)
+        dumb3 = torch.zeros((nsamps, model.num_tokens)).to(device)
+
+        dumb4 = torch.zeros((nsamps, model.inp_dim)).to(device)
+        dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
+        dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
 
         # Zero gradient buffers
         optimizer.zero_grad()
@@ -326,7 +355,7 @@ def train(model, train_loader, optimizer, scheduler,
         # Forward pass
         output = model(inputs)
         # output.requires_grad_(True)
-        agop_tr, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, agop_subsample_n, device)
+        agop_tr, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device)
 
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 

@@ -40,6 +40,7 @@ class TwoLayerFCN(torch.nn.Module):
     self.out = nn.Linear(hidden_width, num_tokens, bias=False)
 
   def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
+              dumb4=None, dumb5=None, dumb6=None,
               return_layer=None):
       if dumb1 is None:
           if return_layer == 'M^.5x' or return_layer == 'relu(M^.5x)':
@@ -65,9 +66,12 @@ class TwoLayerFCN(torch.nn.Module):
 
           return self.out(x)
 
-      x = F.relu(self.fc1(x) + dumb1 @ self.fc1.weight.t())
-      x = F.relu(self.fc2(x) + dumb2 @ self.fc2.weight.t())
-      x = self.out(x) + dumb3 @ self.out.weight.t()
+      x = F.relu(self.fc1(x) + dumb1 + dumb4 @ self.fc1.weight.t())
+      x = F.relu(self.fc2(x) + dumb2 + dumb5 @ self.fc2.weight.t())
+      x = self.out(x) + dumb3 + dumb6 @ self.out.weight.t()
+      #x = F.relu(self.fc1(x) + dumb1 @ self.fc1.weight.t())
+      #x = F.relu(self.fc2(x) + dumb2 @ self.fc2.weight.t())
+      #x = self.out(x) + dumb3 @ self.out.weight.t()
       return x
 
 class FCN(torch.nn.Module):
