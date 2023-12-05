@@ -25,6 +25,50 @@ class FCNEmbedded(torch.nn.Module):
   def forward(self, x: Tensor):
     return self.layers(x)
 
+class OneLayerFCN(torch.nn.Module):
+  def __init__(self, dim_model: int, num_tokens: int, hidden_width: int, context_len: int):
+    super().__init__()
+
+    self.num_tokens = num_tokens
+    inp_dim = dim_model * context_len
+    inp_dim = self.num_tokens * context_len
+    self.inp_dim = inp_dim
+    self.hidden_width = hidden_width
+
+    self.fc1 = nn.Linear(inp_dim, hidden_width, bias=False)
+    self.out = nn.Linear(hidden_width, num_tokens, bias=False)
+
+  def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
+              dumb4=None, return_layer=None, act='relu'):
+      if act == 'relu':
+          act_fn = F.relu
+      elif act == 'swish':
+          act_fn = F.silu
+      elif act == 'quad2':
+          act_fn = lambda x: torch.pow(x, 2)
+
+      if dumb1 is None:
+          if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
+              M = self.fc1.weight.t() @ self.fc1.weight
+              L, V = torch.linalg.eigh(M)
+              sqrtM = V @ torch.diag(torch.sqrt(L)) @ V.T
+              if return_layer == 'M^.5x':
+                  return x @ sqrtM
+              return act_fn(x @ sqrtM)
+
+          x = self.fc1(x)
+          if return_layer == 'lin1':
+              return x
+          x = act_fn(x)
+          if return_layer == 'act_fn(lin1)':
+              return x
+
+          return self.out(x)
+
+      x = act_fn(self.fc1(x) + dumb1 + dumb3 @ self.fc1.weight.t())
+      x = self.out(x) + dumb2 + dumb4 @ self.out.weight.t()
+      return x
+
 class TwoLayerFCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, hidden_width: int, context_len: int):
     super().__init__()
@@ -76,9 +120,6 @@ class TwoLayerFCN(torch.nn.Module):
       x = act_fn(self.fc1(x) + dumb1 + dumb4 @ self.fc1.weight.t())
       x = act_fn(self.fc2(x) + dumb2 + dumb5 @ self.fc2.weight.t())
       x = self.out(x) + dumb3 + dumb6 @ self.out.weight.t()
-      #x = F.relu(self.fc1(x) + dumb1 @ self.fc1.weight.t())
-      #x = F.relu(self.fc2(x) + dumb2 @ self.fc2.weight.t())
-      #x = self.out(x) + dumb3 @ self.out.weight.t()
       return x
 
 class FCN(torch.nn.Module):

@@ -10,7 +10,7 @@ import torchvision
 import matplotlib.pyplot as plt
 
 from data import get_data
-from model import Transformer, TwoLayerFCN, FCN
+from model import TwoLayerFCN, OneLayerFCN
 import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
@@ -57,32 +57,19 @@ def main(args: dict):
     num_tokens = config.prime
 
     embedding_layer = None
-    if config.model == 'transformer':
-        model = Transformer(
-            num_layers=config.num_layers,
-            dim_model=config.dim_model,
-            num_heads=config.num_heads,
-            num_tokens=num_tokens,
-            seq_len=5
-            ).to(device)
-    elif config.model == 'fcn':
-        embedding_layer = nn.Embedding(num_tokens, config.dim_model)
-        embedding_layer.requires_grad_(False)
-        embedding_layer = embedding_layer.to(device)
-
-        model = FCN(
-            dim_model=config.dim_model,
-            num_tokens=num_tokens,
-            num_layers=config.num_layers,
-            hidden_width=config.fcn_hidden_width,
-            context_len=context_len
-        ).to(device)
-    elif config.model == 'TwoLayerFCN':
+    if config.model == 'TwoLayerFCN':
         # embedding_layer = nn.Embedding(num_tokens, config.dim_model)
         # embedding_layer.requires_grad_(False)
         # embedding_layer = embedding_layer.to(device)
 
         model = TwoLayerFCN(
+            dim_model=config.dim_model,
+            num_tokens=num_tokens,
+            hidden_width=config.fcn_hidden_width,
+            context_len=context_len
+        ).to(device)
+    elif config.model == 'OneLayerFCN':
+        model = OneLayerFCN(
             dim_model=config.dim_model,
             num_tokens=num_tokens,
             hidden_width=config.fcn_hidden_width,
@@ -145,8 +132,11 @@ def main(args: dict):
         val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1')
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin2')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin2)')
+
+        if config.model == 'TwoLayerFCN':
+            ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin2')
+            ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin2)')
+
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='M^.5x')
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(M^.5x)')
 
@@ -273,21 +263,27 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
     # tradeoffs depending on layer and batch sizes, but they can be
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
-    jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5, 6))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
+    if config.model == 'TwoLayerFCN':
+        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5, 6))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
+        weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
+    elif config.model == 'OneLayerFCN':
+        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4))(inp_sample, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
+        weights = [model.fc1.weight.detach()]
+    else:
+        raise Exception()
     jacs = list(jacs)
-
-    weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
 
     agop_tr = 0.0
     agops = []
-    for idx in range(3):
+    offset = int(len(jacs)/2)
+    for idx in range(offset):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
         agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
         agop_tr += torch.trace(agop)
         agop = agop.detach().cpu().numpy()
         agops.append(agop)
 
-        if idx != 2:
+        if idx != (offset - 1):
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()
             corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
@@ -295,7 +291,7 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
                 f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
             }, commit=False)
 
-            left_agop = torch.sum(jacs[idx + 3], dim=(1, 2)).reshape(len(inp_sample), -1)
+            left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
             left_agop = left_agop.t() @ left_agop / len(inp_sample)
             left_agop = left_agop.detach().cpu().numpy()
             left_nfm = weights[idx].t() @ weights[idx]
