@@ -90,8 +90,10 @@ class TwoLayerFCN(torch.nn.Module):
           act_fn = F.relu
       elif act == 'swish':
           act_fn = F.silu
-      elif act == 'quad2':
+      elif act == 'pow2':
           act_fn = lambda x: torch.pow(x, 2)
+      elif act == 'softplus':
+          act_fn = F.softplus
 
       if dumb1 is None:
           if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
