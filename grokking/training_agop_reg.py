@@ -27,7 +27,9 @@ def main(args: dict):
     wandb.init(entity='belkinlab', project=args.wandb_proj_name, mode=mode, config=args,
                dir=args.out_dir)
     # TODO: add wandb name
-    wandb.run.name = f'{wandb.run.id} - {args.model} act_fn={args.act_fn}, agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}'
+    # wandb.run.name = f'{wandb.run.id} - {args.model} act_fn={args.act_fn}, agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}'
+    wandb.run.name = f'{wandb.run.id} - {args.model} act_fn={args.act_fn}, agop_weight={args.agop_weight}, wd={args.weight_decay}, init_scale={args.init_scale}'
+
     wandb.run.save()
 
     out_dir = os.path.join(args.out_dir, args.wandb_proj_name, wandb.run.id)
@@ -66,14 +68,16 @@ def main(args: dict):
             dim_model=config.dim_model,
             num_tokens=num_tokens,
             hidden_width=config.fcn_hidden_width,
-            context_len=context_len
+            context_len=context_len,
+            init_scale=config.init_scale
         ).to(device)
     elif config.model == 'OneLayerFCN':
         model = OneLayerFCN(
             dim_model=config.dim_model,
             num_tokens=num_tokens,
             hidden_width=config.fcn_hidden_width,
-            context_len=context_len
+            context_len=context_len,
+            init_scale=config.init_scale
         ).to(device)
     elif config.model == 'rfm':
         embedding_layer = nn.Embedding(num_tokens, config.dim_model)
@@ -367,7 +371,7 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
         left_agop = left_agop.t() @ left_agop / len(inp_sample)
         left_agop = left_agop.detach().cpu().numpy()
         left_agops.append(left_agop)
-    
+
         if idx != (offset - 1):
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()

@@ -3,6 +3,7 @@ import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 import scipy
+import math
 
 torch.set_default_dtype(torch.float64)
 
@@ -26,7 +27,8 @@ class FCNEmbedded(torch.nn.Module):
     return self.layers(x)
 
 class OneLayerFCN(torch.nn.Module):
-  def __init__(self, dim_model: int, num_tokens: int, hidden_width: int, context_len: int):
+  def __init__(self, dim_model: int, num_tokens: int, hidden_width: int,
+               context_len: int, init_scale=1.0):
     super().__init__()
 
     self.num_tokens = num_tokens
@@ -34,9 +36,21 @@ class OneLayerFCN(torch.nn.Module):
     inp_dim = self.num_tokens * context_len
     self.inp_dim = inp_dim
     self.hidden_width = hidden_width
+    self.init_scale = init_scale
 
     self.fc1 = nn.Linear(inp_dim, hidden_width, bias=False)
     self.out = nn.Linear(hidden_width, num_tokens, bias=False)
+
+    self.reset_params(init_scale=init_scale)
+
+  def reset_params(self, init_scale=1.0):
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    nn.init.uniform_(self.fc1.weight, -init_scale*bound, init_scale*bound)
+
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.out.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
 
   def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
               dumb4=None, return_layer=None, act='relu'):
@@ -46,6 +60,8 @@ class OneLayerFCN(torch.nn.Module):
           act_fn = F.silu
       elif act == 'pow2':
           act_fn = lambda x: torch.pow(x, 2)
+      elif act == 'softplus':
+          act_fn = F.softplus
 
       if dumb1 is None:
           if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
@@ -70,7 +86,8 @@ class OneLayerFCN(torch.nn.Module):
       return x
 
 class TwoLayerFCN(torch.nn.Module):
-  def __init__(self, dim_model: int, num_tokens: int, hidden_width: int, context_len: int):
+  def __init__(self, dim_model: int, num_tokens: int, hidden_width: int,
+               context_len: int, init_scale=1.0):
     super().__init__()
 
     self.num_tokens = num_tokens
@@ -82,6 +99,22 @@ class TwoLayerFCN(torch.nn.Module):
     self.fc1 = nn.Linear(inp_dim, hidden_width, bias=False)
     self.fc2 = nn.Linear(hidden_width, hidden_width, bias=False)
     self.out = nn.Linear(hidden_width, num_tokens, bias=False)
+
+    self.reset_params(init_scale=init_scale)
+
+  def reset_params(self, init_scale=1.0):
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    nn.init.uniform_(self.fc1.weight, -init_scale*bound, init_scale*bound)
+
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc2.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    nn.init.uniform_(self.fc2.weight, -init_scale*bound, init_scale*bound)
+
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.out.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
+
 
   def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
               dumb4=None, dumb5=None, dumb6=None,
