@@ -143,6 +143,7 @@ def main(args: dict):
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             final_agops = []
+            final_left_agops = []
             total_n = 0
             final_data = []
             final_labels = []
@@ -179,33 +180,49 @@ def main(args: dict):
                 dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
                 dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
 
-                _, agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, device, config)
+                _, agops, left_agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, device, config)
                 for jdx in range(len(agops)):
                     if idx == 0:
                         final_agops.append(agops[jdx]*nsamps)
+                        final_left_agops.append(left_agops[jdx]*nsamps)
                     else:
                         final_agops[jdx] += agops[jdx]*nsamps
+                        final_left_agops[jdx] += left_agops[jdx]*nsamps
                     # np.save(os.path.join(out_dir, f'ep_{epoch}_batch_{idx}_agop_{jdx}.npy'), agops[jdx])
 
-            for jdx, agop in enumerate(final_agops):
+            for jdx, agop in enumerate(final_agops[:-1]):
                 np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop / total_n)
                 plt.clf()
                 plt.imshow(agop / total_n)
                 plt.colorbar()
                 img = wandb.Image(
                     plt,
-                    caption=f'Epoch {epoch} AGOP {jdx}'
+                    caption=f'Epoch {epoch} Right AGOP {jdx}'
                 )
-                wandb.log({f"agop_{jdx}": img}, commit=False)
+                wandb.log({f"right_agop_{jdx}": img}, commit=False)
 
                 plt.clf()
                 plt.imshow(np.real(np.fft.fft2(agop / total_n)))
                 plt.colorbar()
                 img_dft = wandb.Image(
                     plt,
-                    caption=f'Epoch {epoch} Re(FFT2(AGOP {jdx}))'
+                    caption=f'Epoch {epoch} Re(FFT2(Right AGOP {jdx}))'
                 )
-                wandb.log({f"fft2_agop_{jdx}": img_dft})
+                wandb.log({f"fft2_right_agop_{jdx}": img_dft})
+
+                plt.clf()
+                plt.imshow(final_left_agops[jdx] / total_n)
+                plt.colorbar()
+                wandb.log({
+                    f"left_agop_{jdx}": wandb.Image(plt, caption=f"Epoch {epoch} Left AGOP {jdx}")
+                })
+
+                plt.clf()
+                plt.imshow(np.real(np.fft.fft2(final_left_agops[jdx] / total_n)))
+                plt.colorbar()
+                wandb.log({
+                    f"fft2_left_agop_{jdx}": wandb.Image(plt, caption=f"Epoch {epoch} Re(FFT2(Left AGOP {jdx}))")
+                })
 
             nfm = model.fc1.weight.t() @ model.fc1.weight
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
@@ -288,7 +305,7 @@ def visual_weights(model, epoch_idx):
     wandb.log({"w0.T_w0": img2}, commit=False)
 
     plt.clf()
-    plt.imshow(np.real(np.fft.fft2(w0w0t)))
+    plt.imshow(np.real(np.fft.fft2(w0tw0)))
     plt.colorbar()
     img2_dft = wandb.Image(
         plt,
@@ -338,6 +355,7 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
     agop_tr = 0.0
     agops = []
     offset = int(len(jacs)/2)
+    left_agops = []
     for idx in range(offset):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
         agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
@@ -345,6 +363,11 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
         agop = agop.detach().cpu().numpy()
         agops.append(agop)
 
+        left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
+        left_agop = left_agop.t() @ left_agop / len(inp_sample)
+        left_agop = left_agop.detach().cpu().numpy()
+        left_agops.append(left_agop)
+    
         if idx != (offset - 1):
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()
@@ -353,9 +376,10 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
                 f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
             }, commit=False)
 
-            left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
-            left_agop = left_agop.t() @ left_agop / len(inp_sample)
-            left_agop = left_agop.detach().cpu().numpy()
+            #left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
+            #left_agop = left_agop.t() @ left_agop / len(inp_sample)
+            #left_agop = left_agop.detach().cpu().numpy()
+            #left_agops.append(left_agop)
             left_nfm = weights[idx].t() @ weights[idx]
             left_nfm = left_nfm.cpu().numpy()
             corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
@@ -363,7 +387,7 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
                 f'left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
             }, commit=False)
 
-    return agop_tr, agops
+    return agop_tr, agops, left_agops
 
 def train(model, train_loader, optimizer, scheduler,
           device, num_steps, num_classes, loss_arg, config,
@@ -413,7 +437,7 @@ def train(model, train_loader, optimizer, scheduler,
         # Forward pass
         output = model(inputs, act=config.act_fn)
         # output.requires_grad_(True)
-        agop_tr, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config)
+        agop_tr, _, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config)
 
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
