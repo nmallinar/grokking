@@ -145,122 +145,39 @@ def main(args: dict):
             ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin2')
             ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin2)')
 
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='M^.5x')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(M^.5x)')
+        # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='M^.5x')
+        # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(M^.5x)')
 
-        final_agops = []
-        final_left_agops = []
-        total_n = 0
-        for idx, batch in enumerate(train_loader):
-            # Copy data to device if needed
-            batch = tuple(t.to(device) for t in batch)
-            # Unpack the batch from the loader
-            inputs, labels = batch
+        final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
 
-            if embedding_layer is not None:
-                inputs = embedding_layer(inputs)
-                inputs = inputs.view(inputs.size(0), -1)
-            else:
-                inputs = F.one_hot(inputs, num_tokens).float()
-                inputs = inputs.view(inputs.size(0), -1)
+        if config.model == 'OneLayerFCN':
+            weights = [model.fc1.weight.detach()]
+            idx_range = 1
+        elif config.model == 'TwoLayerFCN':
+            weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
+            idx_range = 2
 
-            if config.agop_subsample_n <= 0:
-                nsamps = len(inputs)
-            else:
-                nsamps = config.agop_subsample_n
+        for idx in range(idx_range):
+            right_nfm = weights[idx] @ weights[idx].t()
+            right_nfm = right_nfm.cpu().numpy()
+            agop = np.real(scipy.linalg.sqrtm(final_agops[idx]))
+            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
+            wandb.log({
+                f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
+            }, commit=False)
 
-            total_n += nsamps
-            dumb1 = torch.zeros((nsamps, model.hidden_width)).to(device)
-            dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
-            dumb3 = torch.zeros((nsamps, model.num_tokens)).to(device)
-
-            dumb4 = torch.zeros((nsamps, model.inp_dim)).to(device)
-            dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
-            dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
-
-            _, agops, left_agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, device, config)
-            for jdx in range(len(agops)):
-                if idx == 0:
-                    final_agops.append(agops[jdx]*nsamps)
-                    final_left_agops.append(left_agops[jdx]*nsamps)
-                else:
-                    final_agops[jdx] += agops[jdx]*nsamps
-                    final_left_agops[jdx] += left_agops[jdx]*nsamps
-   
-        idx = 0
-        weights = [model.fc1.weight.detach()]
-        right_nfm = weights[idx] @ weights[idx].t()
-        right_nfm = right_nfm.cpu().numpy() 
-        agop = np.real(scipy.linalg.sqrtm(final_agops[0] / total_n))
-        corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
-        wandb.log({
-            f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
-        }, commit=False)
-
-        #left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
-        #left_agop = left_agop.t() @ left_agop / len(inp_sample)
-        #left_agop = left_agop.detach().cpu().numpy()
-        #left_agops.append(left_agop)
-        left_nfm = weights[idx].t() @ weights[idx]
-        left_nfm = left_nfm.cpu().numpy()
-        left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[0] / total_n))
-        corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
-        wandb.log({
-            f'left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
-        })
+            left_nfm = weights[idx].t() @ weights[idx]
+            left_nfm = left_nfm.cpu().numpy()
+            left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
+            corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
+            wandb.log({
+                f'left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
+            }, commit=False)
 
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
-            final_agops = []
-            final_left_agops = []
-            total_n = 0
-            final_data = []
-            final_labels = []
-            for idx, batch in enumerate(train_loader):
-                # Copy data to device if needed
-                batch = tuple(t.to(device) for t in batch)
-                # Unpack the batch from the loader
-                inputs, labels = batch
-
-                if embedding_layer is not None:
-                    inputs = embedding_layer(inputs)
-                    inputs = inputs.view(inputs.size(0), -1)
-                else:
-                    inputs = F.one_hot(inputs, num_tokens).float()
-                    inputs = inputs.view(inputs.size(0), -1)
-
-                if config.agop_subsample_n <= 0:
-                    nsamps = len(inputs)
-                else:
-                    nsamps = config.agop_subsample_n
-
-                with torch.no_grad():
-                    hid_states = model(inputs, return_layer='act_fn(lin1)', act=config.act_fn)
-
-                final_data.append(hid_states.detach().cpu())
-                final_labels.append(labels.detach().cpu())
-
-                total_n += nsamps
-                dumb1 = torch.zeros((nsamps, model.hidden_width)).to(device)
-                dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
-                dumb3 = torch.zeros((nsamps, model.num_tokens)).to(device)
-
-                dumb4 = torch.zeros((nsamps, model.inp_dim)).to(device)
-                dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
-                dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
-
-                _, agops, left_agops = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, device, config)
-                for jdx in range(len(agops)):
-                    if idx == 0:
-                        final_agops.append(agops[jdx]*nsamps)
-                        final_left_agops.append(left_agops[jdx]*nsamps)
-                    else:
-                        final_agops[jdx] += agops[jdx]*nsamps
-                        final_left_agops[jdx] += left_agops[jdx]*nsamps
-                    # np.save(os.path.join(out_dir, f'ep_{epoch}_batch_{idx}_agop_{jdx}.npy'), agops[jdx])
-
             for jdx, agop in enumerate(final_agops[:-1]):
-                np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop / total_n)
+                np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop)
                 plt.clf()
                 plt.imshow(agop / total_n)
                 plt.colorbar()
@@ -271,77 +188,30 @@ def main(args: dict):
                 wandb.log({f"right_agop_{jdx}": img}, commit=False)
 
                 plt.clf()
-                plt.imshow(np.real(np.fft.fft2(agop / total_n)))
-                plt.colorbar()
-                img_dft = wandb.Image(
-                    plt,
-                    caption=f'Epoch {epoch} Re(FFT2(Right AGOP {jdx}))'
-                )
-                wandb.log({f"fft2_right_agop_{jdx}": img_dft})
-
-                plt.clf()
-                plt.imshow(final_left_agops[jdx] / total_n)
+                plt.imshow(final_left_agops[jdx])
                 plt.colorbar()
                 wandb.log({
                     f"left_agop_{jdx}": wandb.Image(plt, caption=f"Epoch {epoch} Left AGOP {jdx}")
                 })
 
-                plt.clf()
-                plt.imshow(np.real(np.fft.fft2(final_left_agops[jdx] / total_n)))
-                plt.colorbar()
-                wandb.log({
-                    f"fft2_left_agop_{jdx}": wandb.Image(plt, caption=f"Epoch {epoch} Re(FFT2(Left AGOP {jdx}))")
-                })
 
             nfm = model.fc1.weight.t() @ model.fc1.weight
             np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
-            final_data = torch.cat(final_data, dim=0)
-            final_labels = torch.cat(final_labels, dim=0)
+
+            final_data, final_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer)
             np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data.numpy())
             np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy'), final_labels.numpy())
 
-            final_data = []
-            final_labels = []
-            for batch in val_loader:
-                # Copy data to device if needed
-                batch = tuple(t.to(device) for t in batch)
-
-                # Unpack the batch from the loader
-                inputs, labels = batch
-
-                if embedding_layer is not None:
-                    inputs = embedding_layer(inputs)
-                    inputs = inputs.view(inputs.size(0), -1)
-                else:
-                    inputs = F.one_hot(inputs, num_tokens).float()
-                    inputs = inputs.view(inputs.size(0), -1)
-
-                # Forward pass
-                with torch.no_grad():
-                    hid_states = model(inputs, return_layer='act_fn(lin1)', act=config.act_fn)
-
-                final_data.append(hid_states.detach().cpu())
-                final_labels.append(labels.detach().cpu())
-
-            final_data = torch.cat(final_data, dim=0)
-            final_labels = torch.cat(final_labels, dim=0)
+            final_data, final_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer)
             np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy'), final_data.numpy())
             np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy'), final_labels.numpy())
 
 
 def visual_weights(model, epoch_idx):
-    #params = dict(model.named_parameters())
-    # [d, h] weights
-
-    #w0 = params['layers.0.weight']
     w0 = model.fc1.weight.t()
     # w0: [d, h]
     w0w0t = w0 @ w0.T
-    # w0w0t = w0w0t.unsqueeze(0)
-    # w0w0t = torchvision.utils.make_grid(w0w0t)
     w0tw0 = w0.T @ w0
-    # w0tw0 = w0tw0.unsqueeze(0)
-    # w0tw0 = torchvision.utils.make_grid(w0tw0)
 
     w0w0t = w0w0t.detach().cpu().numpy()
     w0tw0 = w0tw0.detach().cpu().numpy()
@@ -356,15 +226,6 @@ def visual_weights(model, epoch_idx):
     wandb.log({"w0_w0.T": image}, commit=False)
 
     plt.clf()
-    plt.imshow(np.real(np.fft.fft2(w0w0t)))
-    plt.colorbar()
-    img_dft = wandb.Image(
-        plt,
-        caption=f"Epoch {epoch_idx}, Re(FFT2(W0 @ W0.T))"
-    )
-    wandb.log({"fft2(w0_w0.T)": img_dft}, commit=False)
-
-    plt.clf()
     plt.imshow(w0tw0)
     plt.colorbar()
     img2 = wandb.Image(
@@ -373,15 +234,6 @@ def visual_weights(model, epoch_idx):
     )
     wandb.log({"w0.T_w0": img2}, commit=False)
 
-    plt.clf()
-    plt.imshow(np.real(np.fft.fft2(w0tw0)))
-    plt.colorbar()
-    img2_dft = wandb.Image(
-        plt,
-        caption=f"Epoch {epoch_idx}, Re(FFT2(W0.T @ W0))"
-    )
-    wandb.log({"fft2(w0.T_w0)": img2_dft}, commit=False)
-
     eigvals, _ = np.linalg.eig(w0w0t)
     eigvals = np.sort(eigvals)[::-1]
     plt.clf()
@@ -389,7 +241,7 @@ def visual_weights(model, epoch_idx):
     plt.title(f'Epoch {epoch_idx}, eigenvalues of W0 @ W0.T')
     plt.xlabel('eigenvalue index')
     plt.ylabel('log(eigenvalue)')
-    wandb.log({"spectra w0_w0t": wandb.Image(plt)})
+    wandb.log({"spectra w0_w0t": wandb.Image(plt)}, commit=False)
 
     eigvals, _ = np.linalg.eig(w0tw0)
     eigvals = np.sort(eigvals)[::-1]
@@ -398,11 +250,57 @@ def visual_weights(model, epoch_idx):
     plt.title(f'Epoch {epoch_idx}, eigenvalues of W0.T @ W0')
     plt.xlabel('eigenvalue index')
     plt.ylabel('log(eigenvalue)')
-    wandb.log({"spectra w0t_w0": wandb.Image(plt)})
+    wandb.log({"spectra w0t_w0": wandb.Image(plt)}, commit=False)
 
+def calc_full_agops(model, loader, config, embedding_layer=None):
+    num_tokens = config.prime
 
+    final_agops = []
+    final_left_agops = []
+    total_n = 0
+    for idx, batch in enumerate(loader):
+        # Copy data to device if needed
+        batch = tuple(t.to(config.device) for t in batch)
+        # Unpack the batch from the loader
+        inputs, labels = batch
 
-def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config):
+        if embedding_layer is not None:
+            inputs = embedding_layer(inputs)
+            inputs = inputs.view(inputs.size(0), -1)
+        else:
+            inputs = F.one_hot(inputs, num_tokens).float()
+            inputs = inputs.view(inputs.size(0), -1)
+
+        if config.agop_subsample_n <= 0:
+            nsamps = len(inputs)
+        else:
+            nsamps = config.agop_subsample_n
+
+        total_n += nsamps
+        dumb1 = torch.zeros((nsamps, model.hidden_width)).to(device)
+        dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
+        dumb3 = torch.zeros((nsamps, model.num_tokens)).to(device)
+
+        dumb4 = torch.zeros((nsamps, model.inp_dim)).to(device)
+        dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
+        dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
+
+        _, _, agops, left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, config.device, config)
+        for jdx in range(len(agops)):
+            if idx == 0:
+                final_agops.append(agops[jdx]*nsamps)
+                final_left_agops.append(left_agops[jdx]*nsamps)
+            else:
+                final_agops[jdx] += agops[jdx]*nsamps
+                final_left_agops[jdx] += left_agops[jdx]*nsamps
+
+    for idx in range(len(agops)):
+        final_agops[idx] /= total_n
+        final_left_agops[idx] /= total_n
+
+    return final_agops, final_left_agops
+
+def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config):
     if agop_subsample_n > 0:
         indices = torch.randperm(inputs.size(0), dtype=torch.int32, device=device)[:agop_subsample_n]
         inp_sample = inputs[indices]
@@ -414,16 +312,17 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
     if config.model == 'TwoLayerFCN':
-        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5, 6))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
+        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
     elif config.model == 'OneLayerFCN':
-        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4))(inp_sample, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
+        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3))(inp_sample, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach()]
     else:
         raise Exception()
     jacs = list(jacs)
 
     agop_tr = 0.0
+    left_agop_tr = 0.0
     agops = []
     offset = int(len(jacs)/2)
     left_agops = []
@@ -436,33 +335,28 @@ def calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_sub
 
         left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
         left_agop = left_agop.t() @ left_agop / len(inp_sample)
+        left_agop_tr += torch.trace(left_agop)
         left_agop = left_agop.detach().cpu().numpy()
         left_agops.append(left_agop)
 
-        
-        if idx != (offset - 1):
-            right_nfm = weights[idx] @ weights[idx].t()
-            right_nfm = right_nfm.cpu().numpy() 
-            agop = np.real(scipy.linalg.sqrtm(agop))
-            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
-            wandb.log({
-                f'batch_right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
-            }, commit=False)
+        # if idx != (offset - 1):
+        right_nfm = weights[idx] @ weights[idx].t()
+        right_nfm = right_nfm.cpu().numpy()
+        agop = np.real(scipy.linalg.sqrtm(agop))
+        corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
+        wandb.log({
+            f'batch_right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
+        }, commit=False)
 
-            #left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
-            #left_agop = left_agop.t() @ left_agop / len(inp_sample)
-            #left_agop = left_agop.detach().cpu().numpy()
-            #left_agops.append(left_agop)
-            left_nfm = weights[idx].t() @ weights[idx]
-            left_nfm = left_nfm.cpu().numpy()
-            left_agop = np.real(scipy.linalg.sqrtm(left_agop))
-            corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
-            wandb.log({
-                f'batch_left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
-            }, commit=False)
-        
+        left_nfm = weights[idx].t() @ weights[idx]
+        left_nfm = left_nfm.cpu().numpy()
+        left_agop = np.real(scipy.linalg.sqrtm(left_agop))
+        corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
+        wandb.log({
+            f'batch_left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
+        }, commit=False)
 
-    return agop_tr, agops, left_agops
+    return agop_tr, left_agop_tr, agops, left_agops
 
 def train(model, train_loader, optimizer, scheduler,
           device, num_steps, num_classes, loss_arg, config,
@@ -512,7 +406,7 @@ def train(model, train_loader, optimizer, scheduler,
         # Forward pass
         output = model(inputs, act=config.act_fn)
         # output.requires_grad_(True)
-        agop_tr, _, _ = calc_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config)
+        agop_tr, left_agop_tr, _, _ = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, agop_subsample_n, device, config)
 
         acc = (torch.argmax(output, dim=1) == labels).sum() / len(labels)
 
@@ -666,3 +560,37 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, confi
         wandb.log(metrics, commit=False)
 
         return count / len(all_val_labels)
+
+def extract_feats(model, loader, config, embedding_layer=None):
+    with torch.no_grad():
+        num_tokens = config.prime
+
+        final_data = []
+        final_labels = []
+        for idx, batch in enumerate(loader):
+            # Copy data to device if needed
+            batch = tuple(t.to(config.device) for t in batch)
+            # Unpack the batch from the loader
+            inputs, labels = batch
+
+            if embedding_layer is not None:
+                inputs = embedding_layer(inputs)
+                inputs = inputs.view(inputs.size(0), -1)
+            else:
+                inputs = F.one_hot(inputs, num_tokens).float()
+                inputs = inputs.view(inputs.size(0), -1)
+
+            if config.agop_subsample_n <= 0:
+                nsamps = len(inputs)
+            else:
+                nsamps = config.agop_subsample_n
+
+            hid_states = model(inputs, return_layer='act_fn(lin1)', act=config.act_fn)
+
+            final_data.append(hid_states.detach().cpu())
+            final_labels.append(labels.detach().cpu())
+
+        final_data = torch.cat(final_data, dim=0)
+        final_labels = torch.cat(final_labels, dim=0)
+
+        return final_data, final_labels
