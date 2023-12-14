@@ -147,13 +147,13 @@ def main(args: dict):
 
         train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
         val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
-        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='lin1')
-        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
 
         train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
         val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
-        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='act_fn(lin1)')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
 
         if config.model == 'TwoLayerFCN':
             # for later, same as above
@@ -211,12 +211,12 @@ def main(args: dict):
             np.save(os.path.join(out_dir, f'ep_{epoch}_left_nfm.npy'), nfm.detach().cpu().numpy())
 
             # final_data, final_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer)
-            # np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data.numpy())
-            # np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy'), final_labels.numpy())
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data)
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy'), final_labels)
             #
             # final_data, final_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer)
-            # np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy'), final_data.numpy())
-            # np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy'), final_labels.numpy())
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy'), final_data)
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy'), final_labels)
 
 def log_corr(nfm, agop, log_key, commit=False):
     corr = np.corrcoef(nfm.flatten(), agop.flatten())
@@ -622,17 +622,17 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, config, em
 #
 #         return count / len(all_val_labels)
 
-def ols_feats(train_feats, train_labels, val_feats, val_labels, num_classes, return_layer, feature_projection=None, proj_key=''):
+def ols_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epoch, return_layer, feature_projection=None, proj_key=''):
     if feature_projection is not None:
         train_feats = train_feats @ feature_projection
         val_feats = val_feats @ feature_projection
 
-    sol = np.linalg.pinv(train_feats.T @ train_feats) @ train_feats.T @ F.one_hot(train_labels, num_classes).numpy()
+    sol = np.linalg.pinv(train_feats.T @ train_feats) @ train_feats.T @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
     pred_scores = val_feats @ sol
     pred_labels = np.argmax(pred_scores, axis=1)
 
-    mse = np.mean(np.square(pred_scores - F.one_hot(val_labels, num_classes).numpy()))
-    count = np.sum(val_labels.numpy() == pred_labels)
+    mse = np.mean(np.square(pred_scores - F.one_hot(torch.tensor(val_labels).long(), num_classes).numpy()))
+    count = np.sum(val_labels == pred_labels)
 
     if feature_projection is not None:
         log_key = f'validation/ols_{return_layer}_proj_{proj_key}'
@@ -648,7 +648,7 @@ def ols_feats(train_feats, train_labels, val_feats, val_labels, num_classes, ret
 
     return count / len(val_labels)
 
-def extract_feats(model, loader, config, embedding_layer=None, return_layer='act_fn(lin1)'):
+def extract_feats(model, loader, config, embedding_layer=None, return_layer='act_fn(lin1)', to_numpy=True):
     with torch.no_grad():
         num_tokens = config.prime
 
@@ -674,5 +674,7 @@ def extract_feats(model, loader, config, embedding_layer=None, return_layer='act
 
         final_data = torch.cat(final_data, dim=0)
         final_labels = torch.cat(final_labels, dim=0)
-
+        
+        if to_numpy:
+            return final_data.numpy(), final_labels.numpy()
         return final_data, final_labels
