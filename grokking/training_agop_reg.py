@@ -138,7 +138,13 @@ def main(args: dict):
               agop_weight=config.agop_weight,
               agop_subsample_n=config.agop_subsample_n)
         val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1')
+
+        final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
+        if epoch % 20 == 0:
+            visual_weights(model, epoch)
+
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=final_agops[0], proj_key='right_agop')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_agops[0])), proj_key='sqrt_right_agop')
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
 
         if config.model == 'TwoLayerFCN':
@@ -148,8 +154,6 @@ def main(args: dict):
         # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='M^.5x')
         # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(M^.5x)')
 
-        visual_weights(model, epoch)
-        final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
 
         if config.model == 'OneLayerFCN':
             weights = [model.fc1.weight.detach()]
@@ -513,7 +517,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, config, em
 
     return acc
 
-def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, config, embedding_layer=None, return_layer=None):
+def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, config, embedding_layer=None, return_layer=None, feature_projection=None, proj_key=''):
     # Set model to evaluation mode
     model.eval()
     with torch.no_grad():
@@ -543,6 +547,9 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, confi
         all_train_data = torch.cat(all_train_data).numpy()
         all_train_labels = torch.cat(all_train_labels)
 
+        if feature_projection is not None:
+            all_train_data = all_train_data @ feature_projection
+
         all_val_data = []
         all_val_labels = []
         # Loop over each batch from the validation set
@@ -569,6 +576,9 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, confi
         all_val_labels = torch.cat(all_val_labels)
         all_val_data = torch.cat(all_val_data).numpy()
 
+        if feature_projection is not None:
+            all_train_data = all_val_data @ feature_projection
+
         sol = np.linalg.pinv(all_train_data.T @ all_train_data) @ all_train_data.T @ F.one_hot(all_train_labels, num_classes).numpy()
         pred_scores = all_val_data @ sol
         pred_labels = np.argmax(pred_scores, axis=1)
@@ -576,9 +586,14 @@ def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, confi
         mse = np.mean(np.square(pred_scores - F.one_hot(all_val_labels, num_classes).numpy()))
         count = np.sum(all_val_labels.numpy() == pred_labels)
 
+        if feature_projection is not None:
+            log_key = f'validation/ols_{return_layer}_proj_{proj_key}'
+        else:
+            log_key = f'validation/ols_{return_layer}'
+
         metrics = {
-            f"validation/ols_{return_layer}_accuracy": count / len(all_val_labels),
-            f"validation/ols_{return_layer}_loss": mse,
+            f"{log_key}_accuracy": count / len(all_val_labels),
+            f"{log_key}_loss": mse,
             "epoch": epoch
         }
         wandb.log(metrics, commit=False)
