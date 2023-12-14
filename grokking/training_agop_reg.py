@@ -164,7 +164,8 @@ def main(args: dict):
             idx_range = 2
 
         for idx in range(idx_range):
-            right_nfm = weights[idx] @ weights[idx].t()
+            import ipdb; ipdb.set_trace()
+            right_nfm = weights[idx].t() @ weights[idx]
             right_nfm = right_nfm.cpu().numpy()
 
             if epoch % log_freq == 0:
@@ -176,7 +177,7 @@ def main(args: dict):
                 plot_agop(agop, f'Sqrt Right AGOP {idx}, Epoch {epoch}', f'sqrt_right_agop{idx}', commit=False)
             log_corr(right_nfm, agop, f'sqrt_right_agop{idx}_corr_to_right_nfm_w{idx}', commit=False)
 
-            left_nfm = weights[idx].t() @ weights[idx]
+            left_nfm = weights[idx] @ weights[idx].t()
             left_nfm = left_nfm.cpu().numpy()
 
             if epoch % log_freq == 0:
@@ -190,10 +191,10 @@ def main(args: dict):
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             nfm = model.fc1.weight.t() @ model.fc1.weight
-            np.save(os.path.join(out_dir, f'ep_{epoch}_left_nfm.npy'), nfm.detach().cpu().numpy())
+            np.save(os.path.join(out_dir, f'ep_{epoch}_right_nfm.npy'), nfm.detach().cpu().numpy())
 
             nfm = model.fc1.weight @ model.fc1.weight.t()
-            np.save(os.path.join(out_dir, f'ep_{epoch}_right_nfm.npy'), nfm.detach().cpu().numpy())
+            np.save(os.path.join(out_dir, f'ep_{epoch}_left_nfm.npy'), nfm.detach().cpu().numpy())
 
             # final_data, final_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer)
             # np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data.numpy())
@@ -220,8 +221,8 @@ def plot_agop(agop, caption, log_key, commit=False):
     wandb.log({log_key: img}, commit=commit)
 
 def visual_weights(model, epoch_idx):
-    w0 = model.fc1.weight.t()
-    # w0: [d, h]
+    w0 = model.fc1.weight
+    # w0: [h, d]
     w0w0t = w0 @ w0.T
     w0tw0 = w0.T @ w0
 
@@ -323,15 +324,21 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
     # tradeoffs depending on layer and batch sizes, but they can be
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
+
+    # left AGOP is (k, k)
+    # right AGOP is (d, d)
+    # w_0: (k, d)
+    # left_nfm: w_0 @ w_0.T
+    # right_nfm: w_0.T @ w_0
     if config.model == 'TwoLayerFCN':
-        left_idx = [1, 2]
-        right_idx = [4, 5]
+        left_idx = [0, 1]
+        right_idx = [2, 3]
         layer_idx = [0, 1, 0, 1]
         jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 4, 5))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
     elif config.model == 'OneLayerFCN':
-        left_idx = [1]
-        right_idx = [3]
+        left_idx = [0]
+        right_idx = [1]
         layer_idx = [0, 0]
         jacs = torch.func.jacfwd(model.forward, argnums=(1, 3))(inp_sample, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach()]
@@ -345,9 +352,9 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
     left_agops = []
 
     for idx in range(len(jacs)):
-        import ipdb; ipdb.set_trace()
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
         agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
+        import import ipdb; ipdb.set_trace()
         if idx in right_idx:
             agop_tr += torch.trace(agop)
         else:
@@ -356,7 +363,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
 
         if idx in left_idx:
             left_agops.append(agop)
-            left_nfm = weights[layer_idx[idx]].t() @ weights[layer_idx[idx]]
+            left_nfm = weights[layer_idx[idx]] @ weights[layer_idx[idx]].t()
             left_nfm = left_nfm.cpu().numpy()
 
             corr = np.corrcoef(left_nfm.flatten(), agop.flatten())
@@ -371,7 +378,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
             }, commit=False)
         else:
             agops.append(agop)
-            right_nfm = weights[layer_idx[idx]] @ weights[layer_idx[idx]].t()
+            right_nfm = weights[layer_idx[idx]].t() @ weights[layer_idx[idx]]
             right_nfm = right_nfm.cpu().numpy()
 
             corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
