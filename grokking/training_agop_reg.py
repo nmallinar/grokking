@@ -160,19 +160,29 @@ def main(args: dict):
         for idx in range(idx_range):
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()
+            corr = np.corrcoef(right_nfm.flatten(), final_agops[idx].flatten())
+            wandb.log({
+                f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
+            }, commit=False)
+            
             agop = np.real(scipy.linalg.sqrtm(final_agops[idx]))
             corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
             wandb.log({
-                f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
+                f'sqrt_right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
             }, commit=False)
 
             left_nfm = weights[idx].t() @ weights[idx]
             left_nfm = left_nfm.cpu().numpy()
-            left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
-            corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
+            corr = np.corrcoef(left_nfm.flatten(), final_left_agops[idx].flatten())
             wandb.log({
                 f'left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
             }, commit=False)
+
+            left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
+            corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
+            wandb.log({
+                f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
+            }, commit=True)
 
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
@@ -192,7 +202,7 @@ def main(args: dict):
                 plt.colorbar()
                 wandb.log({
                     f"left_agop_{jdx}": wandb.Image(plt, caption=f"Epoch {epoch} Left AGOP {jdx}")
-                })
+                }, commit=True)
 
 
             nfm = model.fc1.weight.t() @ model.fc1.weight
@@ -277,13 +287,13 @@ def calc_full_agops(model, loader, config, embedding_layer=None):
             nsamps = config.agop_subsample_n
 
         total_n += nsamps
-        dumb1 = torch.zeros((nsamps, model.hidden_width)).to(device)
-        dumb2 = torch.zeros((nsamps, model.hidden_width)).to(device)
-        dumb3 = torch.zeros((nsamps, model.num_tokens)).to(device)
+        dumb1 = torch.zeros((nsamps, model.hidden_width)).to(config.device)
+        dumb2 = torch.zeros((nsamps, model.hidden_width)).to(config.device)
+        dumb3 = torch.zeros((nsamps, model.num_tokens)).to(config.device)
 
-        dumb4 = torch.zeros((nsamps, model.inp_dim)).to(device)
-        dumb5 = torch.zeros((nsamps, model.hidden_width)).to(device)
-        dumb6 = torch.zeros((nsamps, model.hidden_width)).to(device)
+        dumb4 = torch.zeros((nsamps, model.inp_dim)).to(config.device)
+        dumb5 = torch.zeros((nsamps, model.hidden_width)).to(config.device)
+        dumb6 = torch.zeros((nsamps, model.hidden_width)).to(config.device)
 
         _, _, agops, left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.agop_subsample_n, config.device, config)
         for jdx in range(len(agops)):
@@ -312,10 +322,16 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
     # used interchangeably if one is too slow
     #jacs = torch.func.jacrev(model.forward)(inp_sample)
     if config.model == 'TwoLayerFCN':
-        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4, 5))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
+        left_idx = [1, 2]
+        right_idx = [4, 5]
+        layer_idx = [0, 1, 0, 1]
+        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 4, 5))(inp_sample, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
     elif config.model == 'OneLayerFCN':
-        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3))(inp_sample, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
+        left_idx = [1]
+        right_idx = [3]
+        layer_idx = [0, 0]
+        jacs = torch.func.jacfwd(model.forward, argnums=(1, 3))(inp_sample, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach()]
     else:
         raise Exception()
@@ -324,37 +340,47 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
     agop_tr = 0.0
     left_agop_tr = 0.0
     agops = []
-    offset = int(len(jacs)/2)
     left_agops = []
-    for idx in range(offset):
+
+    for idx in range(len(jacs)):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
         agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
-        agop_tr += torch.trace(agop)
+        if idx in right_idx:
+            agop_tr += torch.trace(agop)
+        else:
+            left_agop_tr += torch.trace(agop)
         agop = agop.detach().cpu().numpy()
-        agops.append(agop)
+        
+        if idx in left_idx:
+            left_agops.append(agop)
+            left_nfm = weights[layer_idx[idx]].t() @ weights[layer_idx[idx]]
+            left_nfm = left_nfm.cpu().numpy()
 
-        left_agop = torch.sum(jacs[idx + offset], dim=(1, 2)).reshape(len(inp_sample), -1)
-        left_agop = left_agop.t() @ left_agop / len(inp_sample)
-        left_agop_tr += torch.trace(left_agop)
-        left_agop = left_agop.detach().cpu().numpy()
-        left_agops.append(left_agop)
+            corr = np.corrcoef(left_nfm.flatten(), agop.flatten())
+            wandb.log({
+                f'batch_left_agop{layer_idx[idx]}_corr_to_left_nfm_w{layer_idx[idx]}': corr[0][1]
+            }, commit=False)
 
-        # if idx != (offset - 1):
-        right_nfm = weights[idx] @ weights[idx].t()
-        right_nfm = right_nfm.cpu().numpy()
-        agop = np.real(scipy.linalg.sqrtm(agop))
-        corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
-        wandb.log({
-            f'batch_right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
-        }, commit=False)
+            agop = np.real(scipy.linalg.sqrtm(agop))
+            corr = np.corrcoef(left_nfm.flatten(), agop.flatten())
+            wandb.log({
+                f'batch_sqrt_left_agop{layer_idx[idx]}_corr_to_left_nfm_w{layer_idx[idx]}': corr[0][1]
+            }, commit=False)
+        else:
+            agops.append(agop)
+            right_nfm = weights[layer_idx[idx]] @ weights[layer_idx[idx]].t()
+            right_nfm = right_nfm.cpu().numpy()
+        
+            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
+            wandb.log({
+                f'batch_right_agop{layer_idx[idx]}_corr_to_right_nfm_w{layer_idx[idx]}': corr[0][1]
+            }, commit=False)
 
-        left_nfm = weights[idx].t() @ weights[idx]
-        left_nfm = left_nfm.cpu().numpy()
-        left_agop = np.real(scipy.linalg.sqrtm(left_agop))
-        corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
-        wandb.log({
-            f'batch_left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
-        }, commit=False)
+            agop = np.real(scipy.linalg.sqrtm(agop))
+            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
+            wandb.log({
+                f'batch_sqrt_right_agop{layer_idx[idx]}_corr_to_right_nfm_w{layer_idx[idx]}': corr[0][1]
+            }, commit=False)
 
     return agop_tr, left_agop_tr, agops, left_agops
 
@@ -430,7 +456,8 @@ def train(model, train_loader, optimizer, scheduler,
             "training/accuracy": acc,
             "training/loss": loss,
             "training/mse_loss": mse_loss,
-            "training/agop_tr": agop_tr.detach().cpu().numpy(),
+            "training/agop_tr": agop_tr,
+            "training/left_agop_tr": left_agop_tr,
             "step": wandb.run.step
         }
         wandb.log(metrics)
