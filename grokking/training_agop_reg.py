@@ -129,8 +129,8 @@ def main(args: dict):
         np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
 
     for epoch in tqdm(range(num_epochs)):
-        if epoch in viz_indices:
-            visual_weights(model, epoch)
+        # if epoch in viz_indices:
+        #     visual_weights(model, epoch)
 
         train(model, train_loader, optimizer, scheduler, device,
               config.num_steps, num_tokens, args.loss, config,
@@ -148,6 +148,7 @@ def main(args: dict):
         # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='M^.5x')
         # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(M^.5x)')
 
+        visual_weights(model, epoch)
         final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
 
         if config.model == 'OneLayerFCN':
@@ -160,62 +161,54 @@ def main(args: dict):
         for idx in range(idx_range):
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()
-            corr = np.corrcoef(right_nfm.flatten(), final_agops[idx].flatten())
-            wandb.log({
-                f'right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
-            }, commit=False)
-            
+
+            plot_agop(final_agops[idx], f'Right AGOP {idx}, Epoch {epoch}', f'right_agop{idx}', commit=False)
+            log_corr(right_nfm, final_agops[idx], f'right_agop{idx}_corr_to_right_nfm_w{idx}', commit=False)
+
             agop = np.real(scipy.linalg.sqrtm(final_agops[idx]))
-            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
-            wandb.log({
-                f'sqrt_right_agop{idx}_corr_to_right_nfm_w{idx}': corr[0][1]
-            }, commit=False)
+            plot_agop(agop, f'Sqrt Right AGOP {idx}, Epoch {epoch}', f'sqrt_right_agop{idx}', commit=False)
+            log_corr(right_nfm, agop, f'sqrt_right_agop{idx}_corr_to_right_nfm_w{idx}', commit=False)
 
             left_nfm = weights[idx].t() @ weights[idx]
             left_nfm = left_nfm.cpu().numpy()
-            corr = np.corrcoef(left_nfm.flatten(), final_left_agops[idx].flatten())
-            wandb.log({
-                f'left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
-            }, commit=False)
+
+            plot_agop(final_left_agops[idx], f'Left AGOP {idx}, Epoch {epoch}', f'left_agop{idx}', commit=False)
+            log_corr(left_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
             left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
-            corr = np.corrcoef(left_nfm.flatten(), left_agop.flatten())
-            wandb.log({
-                f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}': corr[0][1]
-            }, commit=True)
-
+            plot_agop(final_left_agops[idx], f'Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_left_agop{idx}', commit=False)
+            log_corr(left_nfm, final_left_agops[idx], f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
-            for jdx, agop in enumerate(final_agops[:-1]):
-                np.save(os.path.join(out_dir, f'ep_{epoch}_agop_{jdx}.npy'), agop)
-                plt.clf()
-                plt.imshow(agop / total_n)
-                plt.colorbar()
-                img = wandb.Image(
-                    plt,
-                    caption=f'Epoch {epoch} Right AGOP {jdx}'
-                )
-                wandb.log({f"right_agop_{jdx}": img}, commit=False)
-
-                plt.clf()
-                plt.imshow(final_left_agops[jdx])
-                plt.colorbar()
-                wandb.log({
-                    f"left_agop_{jdx}": wandb.Image(plt, caption=f"Epoch {epoch} Left AGOP {jdx}")
-                }, commit=True)
-
-
             nfm = model.fc1.weight.t() @ model.fc1.weight
-            np.save(os.path.join(out_dir, f'ep_{epoch}_neural_feature_matrix.npy'), nfm.detach().cpu().numpy())
+            np.save(os.path.join(out_dir, f'ep_{epoch}_left_nfm.npy'), nfm.detach().cpu().numpy())
 
-            final_data, final_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer)
-            np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data.numpy())
-            np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy'), final_labels.numpy())
+            nfm = model.fc1.weight @ model.fc1.weight.t()
+            np.save(os.path.join(out_dir, f'ep_{epoch}_right_nfm.npy'), nfm.detach().cpu().numpy())
 
-            final_data, final_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer)
-            np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy'), final_data.numpy())
-            np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy'), final_labels.numpy())
+            # final_data, final_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer)
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data.numpy())
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_train_labels.npy'), final_labels.numpy())
+            #
+            # final_data, final_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer)
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy'), final_data.numpy())
+            # np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy'), final_labels.numpy())
 
+def log_corr(nfm, agop, log_key, commit=False):
+    corr = np.corrcoef(nfm.flatten(), agop.flatten())
+    wandb.log({
+        log_key: corr[0][1]
+    }, commit=commit)
+
+def plot_agop(agop, caption, log_key, commit=False):
+    plt.clf()
+    plt.imshow(agop)
+    plt.colorbar()
+    img = wandb.Image(
+        plt,
+        caption=caption
+    )
+    wandb.log({log_key: img}, commit=commit)
 
 def visual_weights(model, epoch_idx):
     w0 = model.fc1.weight.t()
@@ -350,7 +343,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
         else:
             left_agop_tr += torch.trace(agop)
         agop = agop.detach().cpu().numpy()
-        
+
         if idx in left_idx:
             left_agops.append(agop)
             left_nfm = weights[layer_idx[idx]].t() @ weights[layer_idx[idx]]
@@ -370,7 +363,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
             agops.append(agop)
             right_nfm = weights[layer_idx[idx]] @ weights[layer_idx[idx]].t()
             right_nfm = right_nfm.cpu().numpy()
-        
+
             corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
             wandb.log({
                 f'batch_right_agop{layer_idx[idx]}_corr_to_right_nfm_w{layer_idx[idx]}': corr[0][1]
