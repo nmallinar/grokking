@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
 from rfm import main as rfm_main
+from inf_ntk import ntk_fn, jax_ntk_fn
 
 torch.manual_seed(34)
 import random
@@ -144,13 +145,21 @@ def main(args: dict):
         if epoch % log_freq == 0:
             visual_weights(model, epoch)
 
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
+        train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
+        val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='lin1')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
+
+        train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
+        val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
+        ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, return_layer='act_fn(lin1)')
 
         if config.model == 'TwoLayerFCN':
-            ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin2')
-            ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin2)')
+            # for later, same as above
+            continue
+            #ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin2')
+            #ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin2)')
 
         # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='M^.5x')
         # ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(M^.5x)')
@@ -182,17 +191,17 @@ def main(args: dict):
             if epoch % log_freq == 0:
                 plot_agop(final_left_agops[idx], f'Left AGOP {idx}, Epoch {epoch}', f'left_agop{idx}', commit=False)
             log_corr(left_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
-            
-            l, v = np.linalg.eig(left_nfm)
-            scaled_nfm = v @ np.diag(l/256.0) @ v.T
-            log_corr(scaled_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_scaled_left_nfm_w{idx}', commit=False)
+
+            # l, v = np.linalg.eig(left_nfm)
+            # scaled_nfm = v @ np.diag(l/256.0) @ v.T
+            # log_corr(scaled_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_scaled_left_nfm_w{idx}', commit=False)
 
             left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
             if epoch % log_freq == 0:
                 plot_agop(left_agop, f'Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_left_agop{idx}', commit=False)
             log_corr(left_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
-            log_corr(scaled_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_scaled_left_nfm_w{idx}', commit=False)
+            # log_corr(scaled_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_scaled_left_nfm_w{idx}', commit=False)
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             nfm = model.fc1.weight.t() @ model.fc1.weight
@@ -530,90 +539,116 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, config, em
 
     return acc
 
-def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, config, embedding_layer=None, return_layer=None, feature_projection=None, proj_key=''):
-    # Set model to evaluation mode
-    model.eval()
-    with torch.no_grad():
+# def ols_feats(model, train_loader, val_loader, device, epoch, num_classes, config, embedding_layer=None, return_layer=None, feature_projection=None, proj_key=''):
+#     # Set model to evaluation mode
+#     model.eval()
+#     with torch.no_grad():
+#
+#         all_train_data = []
+#         all_train_labels = []
+#         for batch in train_loader:
+#             # Copy data to device if needed
+#             batch = tuple(t.to(device) for t in batch)
+#
+#             # Unpack the batch from the loader
+#             inputs, labels = batch
+#
+#             if embedding_layer is not None:
+#                 inputs = embedding_layer(inputs)
+#                 inputs = inputs.view(inputs.size(0), -1)
+#             else:
+#                 inputs = F.one_hot(inputs, num_classes).float()
+#                 inputs = inputs.view(inputs.size(0), -1)
+#
+#             # Forward pass
+#             with torch.no_grad():
+#                 output = model(inputs, return_layer=return_layer, act=config.act_fn)
+#                 all_train_data.append(output.detach().cpu())
+#                 all_train_labels.append(labels.detach().cpu())
+#
+#         all_train_data = torch.cat(all_train_data).numpy()
+#         all_train_labels = torch.cat(all_train_labels)
+#
+#         if feature_projection is not None:
+#             all_train_data = all_train_data @ feature_projection
+#
+#         all_val_data = []
+#         all_val_labels = []
+#         # Loop over each batch from the validation set
+#         for batch in val_loader:
+#             # Copy data to device if needed
+#             batch = tuple(t.to(device) for t in batch)
+#
+#             # Unpack the batch from the loader
+#             inputs, labels = batch
+#
+#             if embedding_layer is not None:
+#                 inputs = embedding_layer(inputs)
+#                 inputs = inputs.view(inputs.size(0), -1)
+#             else:
+#                 inputs = F.one_hot(inputs, num_classes).float()
+#                 inputs = inputs.view(inputs.size(0), -1)
+#
+#             # Forward pass
+#             with torch.no_grad():
+#                 output = model(inputs, return_layer=return_layer, act=config.act_fn)
+#                 all_val_data.append(output.detach().cpu())
+#                 all_val_labels.append(labels.detach().cpu())
+#
+#         all_val_labels = torch.cat(all_val_labels)
+#         all_val_data = torch.cat(all_val_data).numpy()
+#
+#         if feature_projection is not None:
+#             all_train_data = all_val_data @ feature_projection
+#
+#         sol = np.linalg.pinv(all_train_data.T @ all_train_data) @ all_train_data.T @ F.one_hot(all_train_labels, num_classes).numpy()
+#         pred_scores = all_val_data @ sol
+#         pred_labels = np.argmax(pred_scores, axis=1)
+#
+#         mse = np.mean(np.square(pred_scores - F.one_hot(all_val_labels, num_classes).numpy()))
+#         count = np.sum(all_val_labels.numpy() == pred_labels)
+#
+#         if feature_projection is not None:
+#             log_key = f'validation/ols_{return_layer}_proj_{proj_key}'
+#         else:
+#             log_key = f'validation/ols_{return_layer}'
+#
+#         metrics = {
+#             f"{log_key}_accuracy": count / len(all_val_labels),
+#             f"{log_key}_loss": mse,
+#             "epoch": epoch
+#         }
+#         wandb.log(metrics, commit=False)
+#
+#         return count / len(all_val_labels)
 
-        all_train_data = []
-        all_train_labels = []
-        for batch in train_loader:
-            # Copy data to device if needed
-            batch = tuple(t.to(device) for t in batch)
+def ols_feats(train_feats, train_labels, val_feats, val_labels, num_classes, return_layer, feature_projection=None, proj_key=''):
+    if feature_projection is not None:
+        train_feats = train_feats @ feature_projection
+        val_feats = val_feats @ feature_projection
 
-            # Unpack the batch from the loader
-            inputs, labels = batch
+    sol = np.linalg.pinv(train_feats.T @ train_feats) @ train_feats.T @ F.one_hot(train_labels, num_classes).numpy()
+    pred_scores = val_feats @ sol
+    pred_labels = np.argmax(pred_scores, axis=1)
 
-            if embedding_layer is not None:
-                inputs = embedding_layer(inputs)
-                inputs = inputs.view(inputs.size(0), -1)
-            else:
-                inputs = F.one_hot(inputs, num_classes).float()
-                inputs = inputs.view(inputs.size(0), -1)
+    mse = np.mean(np.square(pred_scores - F.one_hot(val_labels, num_classes).numpy()))
+    count = np.sum(val_labels.numpy() == pred_labels)
 
-            # Forward pass
-            with torch.no_grad():
-                output = model(inputs, return_layer=return_layer, act=config.act_fn)
-                all_train_data.append(output.detach().cpu())
-                all_train_labels.append(labels.detach().cpu())
+    if feature_projection is not None:
+        log_key = f'validation/ols_{return_layer}_proj_{proj_key}'
+    else:
+        log_key = f'validation/ols_{return_layer}'
 
-        all_train_data = torch.cat(all_train_data).numpy()
-        all_train_labels = torch.cat(all_train_labels)
+    metrics = {
+        f"{log_key}_accuracy": count / len(val_labels),
+        f"{log_key}_loss": mse,
+        "epoch": epoch
+    }
+    wandb.log(metrics, commit=False)
 
-        if feature_projection is not None:
-            all_train_data = all_train_data @ feature_projection
+    return count / len(val_labels)
 
-        all_val_data = []
-        all_val_labels = []
-        # Loop over each batch from the validation set
-        for batch in val_loader:
-            # Copy data to device if needed
-            batch = tuple(t.to(device) for t in batch)
-
-            # Unpack the batch from the loader
-            inputs, labels = batch
-
-            if embedding_layer is not None:
-                inputs = embedding_layer(inputs)
-                inputs = inputs.view(inputs.size(0), -1)
-            else:
-                inputs = F.one_hot(inputs, num_classes).float()
-                inputs = inputs.view(inputs.size(0), -1)
-
-            # Forward pass
-            with torch.no_grad():
-                output = model(inputs, return_layer=return_layer, act=config.act_fn)
-                all_val_data.append(output.detach().cpu())
-                all_val_labels.append(labels.detach().cpu())
-
-        all_val_labels = torch.cat(all_val_labels)
-        all_val_data = torch.cat(all_val_data).numpy()
-
-        if feature_projection is not None:
-            all_train_data = all_val_data @ feature_projection
-
-        sol = np.linalg.pinv(all_train_data.T @ all_train_data) @ all_train_data.T @ F.one_hot(all_train_labels, num_classes).numpy()
-        pred_scores = all_val_data @ sol
-        pred_labels = np.argmax(pred_scores, axis=1)
-
-        mse = np.mean(np.square(pred_scores - F.one_hot(all_val_labels, num_classes).numpy()))
-        count = np.sum(all_val_labels.numpy() == pred_labels)
-
-        if feature_projection is not None:
-            log_key = f'validation/ols_{return_layer}_proj_{proj_key}'
-        else:
-            log_key = f'validation/ols_{return_layer}'
-
-        metrics = {
-            f"{log_key}_accuracy": count / len(all_val_labels),
-            f"{log_key}_loss": mse,
-            "epoch": epoch
-        }
-        wandb.log(metrics, commit=False)
-
-        return count / len(all_val_labels)
-
-def extract_feats(model, loader, config, embedding_layer=None):
+def extract_feats(model, loader, config, embedding_layer=None, return_layer='act_fn(lin1)'):
     with torch.no_grad():
         num_tokens = config.prime
 
@@ -632,12 +667,7 @@ def extract_feats(model, loader, config, embedding_layer=None):
                 inputs = F.one_hot(inputs, num_tokens).float()
                 inputs = inputs.view(inputs.size(0), -1)
 
-            if config.agop_subsample_n <= 0:
-                nsamps = len(inputs)
-            else:
-                nsamps = config.agop_subsample_n
-
-            hid_states = model(inputs, return_layer='act_fn(lin1)', act=config.act_fn)
+            hid_states = model(inputs, return_layer=return_layer, act=config.act_fn)
 
             final_data.append(hid_states.detach().cpu())
             final_labels.append(labels.detach().cpu())
