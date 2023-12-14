@@ -162,22 +162,26 @@ def main(args: dict):
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()
 
-            plot_agop(final_agops[idx], f'Right AGOP {idx}, Epoch {epoch}', f'right_agop{idx}', commit=False)
+            if epoch % 20 == 0:
+                plot_agop(final_agops[idx], f'Right AGOP {idx}, Epoch {epoch}', f'right_agop{idx}', commit=False)
             log_corr(right_nfm, final_agops[idx], f'right_agop{idx}_corr_to_right_nfm_w{idx}', commit=False)
 
             agop = np.real(scipy.linalg.sqrtm(final_agops[idx]))
-            plot_agop(agop, f'Sqrt Right AGOP {idx}, Epoch {epoch}', f'sqrt_right_agop{idx}', commit=False)
+            if epoch % 20 == 0:
+                plot_agop(agop, f'Sqrt Right AGOP {idx}, Epoch {epoch}', f'sqrt_right_agop{idx}', commit=False)
             log_corr(right_nfm, agop, f'sqrt_right_agop{idx}_corr_to_right_nfm_w{idx}', commit=False)
 
             left_nfm = weights[idx].t() @ weights[idx]
             left_nfm = left_nfm.cpu().numpy()
 
-            plot_agop(final_left_agops[idx], f'Left AGOP {idx}, Epoch {epoch}', f'left_agop{idx}', commit=False)
+            if epoch % 20 == 0:
+                plot_agop(final_left_agops[idx], f'Left AGOP {idx}, Epoch {epoch}', f'left_agop{idx}', commit=False)
             log_corr(left_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
             left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
-            plot_agop(final_left_agops[idx], f'Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_left_agop{idx}', commit=False)
-            log_corr(left_nfm, final_left_agops[idx], f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
+            if epoch % 20 == 0:
+                plot_agop(left_agop, f'Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_left_agop{idx}', commit=False)
+            log_corr(left_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             nfm = model.fc1.weight.t() @ model.fc1.weight
