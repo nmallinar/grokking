@@ -144,8 +144,8 @@ def main(args: dict):
         if epoch % log_freq == 0:
             visual_weights(model, epoch)
 
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=final_agops[0], proj_key='right_agop')
-        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_agops[0])), proj_key='sqrt_right_agop')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+        ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
 
         if config.model == 'TwoLayerFCN':
@@ -164,7 +164,6 @@ def main(args: dict):
             idx_range = 2
 
         for idx in range(idx_range):
-            import ipdb; ipdb.set_trace()
             right_nfm = weights[idx].t() @ weights[idx]
             right_nfm = right_nfm.cpu().numpy()
 
@@ -183,11 +182,17 @@ def main(args: dict):
             if epoch % log_freq == 0:
                 plot_agop(final_left_agops[idx], f'Left AGOP {idx}, Epoch {epoch}', f'left_agop{idx}', commit=False)
             log_corr(left_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
+            
+            l, v = np.linalg.eig(left_nfm)
+            scaled_nfm = v @ np.diag(l/256.0) @ v.T
+            log_corr(scaled_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_scaled_left_nfm_w{idx}', commit=False)
 
             left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
             if epoch % log_freq == 0:
                 plot_agop(left_agop, f'Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_left_agop{idx}', commit=False)
             log_corr(left_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
+
+            log_corr(scaled_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_scaled_left_nfm_w{idx}', commit=False)
 
         if val_acc >= 0.98 and epoch % val_save_freq == 0:
             nfm = model.fc1.weight.t() @ model.fc1.weight
@@ -354,7 +359,6 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
     for idx in range(len(jacs)):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
         agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
-        import import ipdb; ipdb.set_trace()
         if idx in right_idx:
             agop_tr += torch.trace(agop)
         else:
