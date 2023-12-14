@@ -124,6 +124,7 @@ def main(args: dict):
 
     viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     val_save_freq = 500
+    log_freq = 20
 
     if embedding_layer is not None:
         np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
@@ -140,7 +141,7 @@ def main(args: dict):
         val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
 
         final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
-        if epoch % 20 == 0:
+        if epoch % log_freq == 0:
             visual_weights(model, epoch)
 
         ols_feats(model, train_loader, val_loader, device, epoch, num_tokens, config, embedding_layer=embedding_layer, return_layer='lin1', feature_projection=final_agops[0], proj_key='right_agop')
@@ -166,24 +167,24 @@ def main(args: dict):
             right_nfm = weights[idx] @ weights[idx].t()
             right_nfm = right_nfm.cpu().numpy()
 
-            if epoch % 20 == 0:
+            if epoch % log_freq == 0:
                 plot_agop(final_agops[idx], f'Right AGOP {idx}, Epoch {epoch}', f'right_agop{idx}', commit=False)
             log_corr(right_nfm, final_agops[idx], f'right_agop{idx}_corr_to_right_nfm_w{idx}', commit=False)
 
             agop = np.real(scipy.linalg.sqrtm(final_agops[idx]))
-            if epoch % 20 == 0:
+            if epoch % log_freq == 0:
                 plot_agop(agop, f'Sqrt Right AGOP {idx}, Epoch {epoch}', f'sqrt_right_agop{idx}', commit=False)
             log_corr(right_nfm, agop, f'sqrt_right_agop{idx}_corr_to_right_nfm_w{idx}', commit=False)
 
             left_nfm = weights[idx].t() @ weights[idx]
             left_nfm = left_nfm.cpu().numpy()
 
-            if epoch % 20 == 0:
+            if epoch % log_freq == 0:
                 plot_agop(final_left_agops[idx], f'Left AGOP {idx}, Epoch {epoch}', f'left_agop{idx}', commit=False)
             log_corr(left_nfm, final_left_agops[idx], f'left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
             left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
-            if epoch % 20 == 0:
+            if epoch % log_freq == 0:
                 plot_agop(left_agop, f'Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_left_agop{idx}', commit=False)
             log_corr(left_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
@@ -344,6 +345,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
     left_agops = []
 
     for idx in range(len(jacs)):
+        import ipdb; ipdb.set_trace()
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
         agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
         if idx in right_idx:
