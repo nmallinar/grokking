@@ -40,7 +40,7 @@ def ntk_fn(x, y, M=None, depth=1, bias=0, jax_rescale=False):
         u = x @ M @ y.t()
         v = (x * (x @ M)).sum(dim=-1).sqrt()
         w = (y * (y @ M)).sum(dim=-1).sqrt()
-        norms = v.view(-1, 1) * w.view(-1)
+    norms = v.view(-1, 1) * w.view(-1)
 
     N_k_minus_1 = u + bias**2
     S_k_minus_1 = u

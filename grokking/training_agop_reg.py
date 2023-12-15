@@ -141,7 +141,6 @@ def main(args: dict):
               agop_subsample_n=config.agop_subsample_n)
         val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
 
-        final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
         if epoch % log_freq == 0:
             visual_weights(model, epoch)
 
@@ -150,6 +149,8 @@ def main(args: dict):
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
         ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
 
+
+        final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
 
