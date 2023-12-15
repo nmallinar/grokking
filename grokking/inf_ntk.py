@@ -135,7 +135,22 @@ def test_ntk():
     print(manually_rescaled_ntk_torch - ntk_torch_scaled)
     print(manually_rescaled_nngp_torch - nngp_torch_scaled)
 
-def jax_ntk_fn(x, y, M=None, depth=2, bias=0):
+def get_jax_ntk_fn(depth=2, bias=0):
+    from neural_tangents import stax
+    import jax
+    layers = []
+    for _ in range(1, depth):
+        layers += [
+            stax.Dense(1, W_std=1, b_std=bias),
+            stax.Relu()
+        ]
+    layers.append(stax.Dense(1, W_std=1, b_std=bias))
+
+    _, _, kernel_fn = stax.serial(*layers)
+
+    return jax.jit(kernel_fn)
+
+def jax_ntk_fn(x, y, M=None, depth=2, bias=0, kernel_fn=None):
     from neural_tangents import stax
     import jax.dlpack
 
@@ -149,15 +164,16 @@ def jax_ntk_fn(x, y, M=None, depth=2, bias=0):
     y = torch.to_dlpack(y)
     y = jax.dlpack.from_dlpack(y)
 
-    layers = []
-    for _ in range(1, depth):
-        layers += [
-            stax.Dense(1, W_std=1, b_std=bias),
-            stax.Relu()
-        ]
-    layers.append(stax.Dense(1, W_std=1, b_std=bias))
+    if kernel_fn is None:
+        layers = []
+        for _ in range(1, depth):
+            layers += [
+                stax.Dense(1, W_std=1, b_std=bias),
+                stax.Relu()
+            ]
+        layers.append(stax.Dense(1, W_std=1, b_std=bias))
 
-    _, _, kernel_fn = stax.serial(*layers)
+        _, _, kernel_fn = stax.serial(*layers)
 
     ntk_nngp_jax = kernel_fn(x, y)
 

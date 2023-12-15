@@ -15,13 +15,15 @@ import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
 from rfm import main as rfm_main
-from inf_ntk import ntk_fn, jax_ntk_fn
+from inf_ntk import ntk_fn, jax_ntk_fn, get_jax_ntk_fn
 
 torch.manual_seed(34)
 import random
 random.seed(23)
 np.random.seed(234)
 torch.set_default_dtype(torch.float32)
+
+kernel_fn = get_jax_ntk_fn(depth=2, bias=0)
 
 def main(args: dict):
     if args.wandb_offline:
@@ -550,8 +552,8 @@ def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epo
     train_feats = torch.tensor(train_feats)
     val_feats = torch.tensor(val_feats)
     import ipdb; ipdb.set_trace()
-    K_tr = jax_ntk_fn(train_feats, train_feats, depth=2)
-    K_te = jax_ntk_fn(train_feats, val_feats, depth=2)
+    K_tr = jax_ntk_fn(train_feats, train_feats, depth=2, kernel_fn=kernel_fn)
+    K_te = jax_ntk_fn(train_feats, val_feats, depth=2, kernel_fn=kernel_fn)
 
     sol = np.linalg.inv(K_tr) @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
 
