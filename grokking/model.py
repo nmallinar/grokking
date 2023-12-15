@@ -62,6 +62,8 @@ class OneLayerFCN(torch.nn.Module):
           act_fn = lambda x: torch.pow(x, 2)
       elif act == 'softplus':
           act_fn = F.softplus
+      elif act == 'linear':
+          act_fn = lambda x: x
 
       if dumb1 is None:
           if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
@@ -127,6 +129,8 @@ class TwoLayerFCN(torch.nn.Module):
           act_fn = lambda x: torch.pow(x, 2)
       elif act == 'softplus':
           act_fn = F.softplus
+      elif act == 'linear':
+          act_fn = lambda x: x
 
       if dumb1 is None:
           if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':

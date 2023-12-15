@@ -157,7 +157,6 @@ def main(args: dict):
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
         ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
         ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
-        ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(np.real(scipy.linalg.sqrtm(final_left_agops[0])))), proj_key='sqrt_sqrt_left_agop')
 
         train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
         val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
@@ -209,11 +208,6 @@ def main(args: dict):
             if epoch % log_freq == 0:
                 plot_agop(left_agop, f'Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_left_agop{idx}', commit=False)
             log_corr(left_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
-
-            left_agop = np.real(scipy.linalg.sqrtm(final_left_agops[idx]))
-            if epoch % log_freq == 0:
-                plot_agop(left_agop, f'Sqrt of Sqrt Left AGOP {idx}, Epoch {epoch}', f'sqrt_sqrt_left_agop{idx}', commit=False)
-            log_corr(left_nfm, left_agop, f'sqrt_sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
             # log_corr(scaled_nfm, left_agop, f'sqrt_left_agop{idx}_corr_to_scaled_left_nfm_w{idx}', commit=False)
 
