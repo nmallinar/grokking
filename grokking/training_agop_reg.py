@@ -552,8 +552,9 @@ def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epo
     train_feats = torch.tensor(train_feats)
     val_feats = torch.tensor(val_feats)
     import ipdb; ipdb.set_trace()
-    K_tr = jax_ntk_fn(train_feats, train_feats, depth=2, kernel_fn=kernel_fn)
-    K_te = jax_ntk_fn(train_feats, val_feats, depth=2, kernel_fn=kernel_fn)
+    _, K_tr = jax_ntk_fn(train_feats, train_feats, depth=2, kernel_fn=kernel_fn)
+    # [train, test]
+    _, K_te = jax_ntk_fn(train_feats, val_feats, depth=2, kernel_fn=kernel_fn)
 
     sol = np.linalg.inv(K_tr) @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
 
