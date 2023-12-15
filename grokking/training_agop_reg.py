@@ -159,6 +159,7 @@ def main(args: dict):
         train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
         val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
+        ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
 
         if config.model == 'TwoLayerFCN':
             # for later, same as above
@@ -551,7 +552,6 @@ def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epo
 
     train_feats = torch.tensor(train_feats)
     val_feats = torch.tensor(val_feats)
-    import ipdb; ipdb.set_trace()
     _, K_tr = jax_ntk_fn(train_feats, train_feats, depth=2, kernel_fn=kernel_fn)
     # [train, test]
     _, K_te = jax_ntk_fn(train_feats, val_feats, depth=2, kernel_fn=kernel_fn)
@@ -559,9 +559,10 @@ def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epo
     sol = np.linalg.inv(K_tr) @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
 
     pred_scores = K_te.T @ sol
-    pred_labels = np.argmax(pred_scores, axis=1)
-
-    mse = np.mean(np.square(pred_scores - F.one_hot(torch.tensor(val_labels).long(), num_classes).numpy()))
+    pred_labels = np.argmax(pred_scores, axis=1).numpy()
+    
+    
+    mse = (pred_scores - F.one_hot(torch.tensor(val_labels).long(), num_classes)).pow(2).mean().numpy()
     count = np.sum(val_labels == pred_labels)
 
     if feature_projection is not None:
