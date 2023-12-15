@@ -155,6 +155,8 @@ def main(args: dict):
         final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
+        ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+        ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
 
         train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
         val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
@@ -382,34 +384,34 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
 
         if idx in left_idx:
             left_agops.append(agop)
-            left_nfm = weights[layer_idx[idx]] @ weights[layer_idx[idx]].t()
-            left_nfm = left_nfm.cpu().numpy()
-
-            corr = np.corrcoef(left_nfm.flatten(), agop.flatten())
-            wandb.log({
-                f'batch_left_agop{layer_idx[idx]}_corr_to_left_nfm_w{layer_idx[idx]}': corr[0][1]
-            }, commit=False)
-
-            agop = np.real(scipy.linalg.sqrtm(agop))
-            corr = np.corrcoef(left_nfm.flatten(), agop.flatten())
-            wandb.log({
-                f'batch_sqrt_left_agop{layer_idx[idx]}_corr_to_left_nfm_w{layer_idx[idx]}': corr[0][1]
-            }, commit=False)
+            # left_nfm = weights[layer_idx[idx]] @ weights[layer_idx[idx]].t()
+            # left_nfm = left_nfm.cpu().numpy()
+            #
+            # corr = np.corrcoef(left_nfm.flatten(), agop.flatten())
+            # wandb.log({
+            #     f'batch_left_agop{layer_idx[idx]}_corr_to_left_nfm_w{layer_idx[idx]}': corr[0][1]
+            # }, commit=False)
+            #
+            # agop = np.real(scipy.linalg.sqrtm(agop))
+            # corr = np.corrcoef(left_nfm.flatten(), agop.flatten())
+            # wandb.log({
+            #     f'batch_sqrt_left_agop{layer_idx[idx]}_corr_to_left_nfm_w{layer_idx[idx]}': corr[0][1]
+            # }, commit=False)
         else:
             agops.append(agop)
-            right_nfm = weights[layer_idx[idx]].t() @ weights[layer_idx[idx]]
-            right_nfm = right_nfm.cpu().numpy()
-
-            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
-            wandb.log({
-                f'batch_right_agop{layer_idx[idx]}_corr_to_right_nfm_w{layer_idx[idx]}': corr[0][1]
-            }, commit=False)
-
-            agop = np.real(scipy.linalg.sqrtm(agop))
-            corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
-            wandb.log({
-                f'batch_sqrt_right_agop{layer_idx[idx]}_corr_to_right_nfm_w{layer_idx[idx]}': corr[0][1]
-            }, commit=False)
+            # right_nfm = weights[layer_idx[idx]].t() @ weights[layer_idx[idx]]
+            # right_nfm = right_nfm.cpu().numpy()
+            #
+            # corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
+            # wandb.log({
+            #     f'batch_right_agop{layer_idx[idx]}_corr_to_right_nfm_w{layer_idx[idx]}': corr[0][1]
+            # }, commit=False)
+            #
+            # agop = np.real(scipy.linalg.sqrtm(agop))
+            # corr = np.corrcoef(right_nfm.flatten(), agop.flatten())
+            # wandb.log({
+            #     f'batch_sqrt_right_agop{layer_idx[idx]}_corr_to_right_nfm_w{layer_idx[idx]}': corr[0][1]
+            # }, commit=False)
 
     return agop_tr, left_agop_tr, agops, left_agops
 
@@ -560,8 +562,8 @@ def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epo
 
     pred_scores = K_te.T @ sol
     pred_labels = np.argmax(pred_scores, axis=1).numpy()
-    
-    
+
+
     mse = (pred_scores - F.one_hot(torch.tensor(val_labels).long(), num_classes)).pow(2).mean().numpy()
     count = np.sum(val_labels == pred_labels)
 
