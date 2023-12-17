@@ -153,6 +153,8 @@ def main(args: dict):
 
 
         final_agops, final_left_agops = calc_full_agops(model, train_loader, config, embedding_layer=embedding_layer)
+        log_agop_norms(final_agops, final_left_agops, commit=False)
+
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
         ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=np.real(scipy.linalg.sqrtm(final_left_agops[0])), proj_key='sqrt_left_agop')
         ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
@@ -225,6 +227,27 @@ def main(args: dict):
             # final_data, final_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer)
             # np.save(os.path.join(out_dir, f'ep_{epoch}_test_feats.npy'), final_data)
             # np.save(os.path.join(out_dir, f'ep_{epoch}_test_labels.npy'), final_labels)
+
+def log_agop_norms(final_agops, final_left_agops, commit=False):
+    for idx, agop in enumerate(final_agops):
+        fro_norm = np.linalg.norm(agop, ord='fro')
+        two_norm = np.linalg.norm(agop, ord=2)
+        stable_rank = (fro_norm ** 2) / (two_norm ** 2)
+        wandb.log({
+            f'right_agop{idx}_fro_norm': fro_norm,
+            f'right_agop{idx}_two_norm': two_norm,
+            f'right_agop{idx}_stable_rank': stable_rank
+        }, commit=commit)
+
+    for idx, agop in enumerate(final_left_agops):
+        fro_norm = np.linalg.norm(agop, ord='fro')
+        two_norm = np.linalg.norm(agop, ord=2)
+        stable_rank = (fro_norm ** 2) / (two_norm ** 2)
+        wandb.log({
+            f'left_agop{idx}_fro_norm': fro_norm,
+            f'left_agop{idx}_two_norm': two_norm,
+            f'left_agop{idx}_stable_rank': stable_rank
+        }, commit=commit)
 
 def log_corr(nfm, agop, log_key, commit=False):
     corr = np.corrcoef(nfm.flatten(), agop.flatten())
@@ -375,6 +398,12 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, ag
 
     for idx in range(len(jacs)):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inp_sample), -1)
+
+        # jac_copy = jacs[idx].cpu().numpy()
+        # two_norms = np.linalg.norm(jac_copy, axis=1)
+        # one_norms = np.linalg.norm(jac_copy, axis=1, ord=1)
+        # three_norms = np.linalg.norm(jac_copy, axis=1, ord=3)
+
         agop = jacs[idx].t() @ jacs[idx] / len(inp_sample)
         if idx in right_idx:
             agop_tr += torch.trace(agop)
