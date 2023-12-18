@@ -9,7 +9,7 @@ import numpy as np
 import torchvision
 import matplotlib.pyplot as plt
 
-from data import get_data
+from data import get_data_with_agop_loader
 from model import TwoLayerFCN, OneLayerFCN
 import torch.nn.functional as F
 from torch import nn
@@ -56,7 +56,7 @@ def main(args: dict):
     wandb.define_metric("validation/loss", step_metric='epoch')
 
     train_loader, agop_loader, val_loader, context_len, train_dataset, val_dataset = \
-        get_data(
+        get_data_with_agop_loader(
             config.operation,
             config.prime,
             config.training_fraction,
@@ -140,8 +140,7 @@ def main(args: dict):
         train(model, train_loader, agop_loader, optimizer, scheduler, device,
               config.num_steps, num_tokens, args.loss, config,
               embedding_layer=embedding_layer,
-              agop_weight=config.agop_weight,
-              agop_subsample_n=config.agop_subsample_n)
+              agop_weight=config.agop_weight)
 
         with torch.no_grad():
             val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
@@ -357,8 +356,9 @@ def calc_full_agops(model, loader, config, embedding_layer=None):
         else:
             inputs = F.one_hot(inputs, num_tokens).float()
             inputs = inputs.view(inputs.size(0), -1)
-
-        total_n += inputs.size(0)
+        
+        nsamps = inputs.size(0)
+        total_n += nsamps
 
         agops, left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
         for jdx in range(len(agops)):
