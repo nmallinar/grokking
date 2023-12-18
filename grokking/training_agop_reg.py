@@ -510,9 +510,10 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         mse_loss = loss.clone()
 
         agop_tr = torch.trace(final_agops[0])
+        left_agop_tr = torch.trace(final_left_agops[0])
 
         if agop_weight > 0:
-            loss += agop_weight * agop_tr
+            loss += agop_weight * left_agop_tr
 
         loss.backward()
 
