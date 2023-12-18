@@ -436,10 +436,15 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
         jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 4, 5))(inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
     elif config.model == 'OneLayerFCN':
-        left_idx = [0]
-        right_idx = [1]
+        # left_idx = [0]
+        # right_idx = [1]
+        # layer_idx = [0, 0]
+        # jacs = torch.func.jacfwd(model.forward, argnums=(1, 3))(inputs, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
+
+        left_idx = [0, 1]
+        right_idx = [2, 3]
         layer_idx = [0, 0]
-        jacs = torch.func.jacfwd(model.forward, argnums=(1, 3))(inputs, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
+        jacs = torch.func.jacfwd(model.forward, argnums=(1, 2, 3, 4))(inputs, dumb1, dumb3, dumb4, dumb6, None, config.act_fn)
         weights = [model.fc1.weight.detach()]
     else:
         raise Exception()
@@ -509,8 +514,9 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         # Backward pass
         mse_loss = loss.clone()
 
-        agop_tr = torch.trace(final_agops[0])
-        left_agop_tr = torch.trace(final_left_agops[0])
+        for idx in range(len(final_agops)):
+            agop_tr += torch.trace(final_agops[idx])
+            left_agop_tr += torch.trace(final_left_agops[idx])
 
         if agop_weight > 0:
             loss += agop_weight * left_agop_tr
@@ -526,7 +532,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             "training/loss": loss,
             "training/mse_loss": mse_loss,
             "training/agop_tr": agop_tr,
-            "training/left_agop_tr": torch.trace(final_left_agops[0]),
+            "training/left_agop_tr": left_agop_tr,
             "step": wandb.run.step
         }
         wandb.log(metrics)
