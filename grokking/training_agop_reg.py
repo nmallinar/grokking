@@ -163,7 +163,7 @@ def main(args: dict):
                 final_sqrt_left_agops.append(np.real(scipy.linalg.sqrtm(final_left_agops[idx])))
 
             log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False)
-
+            '''
             low_rank_left_agops = []
             low_rank_sqrt_left_agops = []
             for idx in range(len(final_left_agops)):
@@ -171,8 +171,9 @@ def main(args: dict):
                 idx = np.argsort(l)[::-1]
                 l = l[idx]
                 v = v[idx]
-                lora = v[:,:10] @ np.diag(l[:10]) @ v[:,:10].T
-                sqrt_lora = v[:,:10] @ np.diag(np.sqrt(l[:10])) @ v[:,:10].T
+                ncomps = 1
+                lora = v[:,:ncomps] @ np.diag(l[:ncomps]) @ v[:,:ncomps].T
+                sqrt_lora = v[:,:ncomps] @ np.diag(np.sqrt(l[:ncomps])) @ v[:,:ncomps].T
                 low_rank_left_agops.append(lora)
                 low_rank_sqrt_left_agops.append(sqrt_lora)
 
@@ -180,11 +181,11 @@ def main(args: dict):
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_sqrt_left_agops[0], proj_key='sqrt_left_agop')
             ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_left_agops[0], proj_key='left_agop')
             ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_sqrt_left_agops[0], proj_key='sqrt_left_agop')
-
-            # ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-            # ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
-            # ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-            # ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
+            '''
+            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
+            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
 
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
