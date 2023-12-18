@@ -164,10 +164,27 @@ def main(args: dict):
 
             log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False)
 
-            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
+            low_rank_left_agops = []
+            low_rank_sqrt_left_agops = []
+            for idx in range(len(final_left_agops)):
+                l, v = np.linalg.eigh(final_left_agops[idx])
+                idx = np.argsort(l)[::-1]
+                l = l[idx]
+                v = v[idx]
+                lora = v[:,:10] @ np.diag(l[:10]) @ v[:,:10].T
+                sqrt_lora = v[:,:10] @ np.diag(np.sqrt(l[:10])) @ v[:,:10].T
+                low_rank_left_agops.append(lora)
+                low_rank_sqrt_left_agops.append(sqrt_lora)
+
+            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_left_agops[0], proj_key='left_agop')
+            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_sqrt_left_agops[0], proj_key='sqrt_left_agop')
+            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_left_agops[0], proj_key='left_agop')
+            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_sqrt_left_agops[0], proj_key='sqrt_left_agop')
+
+            # ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+            # ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
+            # ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+            # ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
 
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
@@ -215,12 +232,29 @@ def main(args: dict):
                 log_corr(left_nfm, final_sqrt_left_agops[idx], f'sqrt_left_agop{idx}_corr_to_left_nfm_w{idx}', commit=False)
 
 
-            if val_acc >= 0.98 and epoch % val_save_freq == 0:
+            if epoch % log_freq == 0:
+                ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
+                os.makedirs(ep_out_dir, exist_ok=True)
+
                 nfm = model.fc1.weight.t() @ model.fc1.weight
-                np.save(os.path.join(out_dir, f'ep_{epoch}_right_nfm.npy'), nfm.detach().cpu().numpy())
+                np.save(os.path.join(ep_out_dir, f'right_nfm.npy'), nfm.detach().cpu().numpy())
 
                 nfm = model.fc1.weight @ model.fc1.weight.t()
-                np.save(os.path.join(out_dir, f'ep_{epoch}_left_nfm.npy'), nfm.detach().cpu().numpy())
+                np.save(os.path.join(ep_out_dir, f'left_nfm.npy'), nfm.detach().cpu().numpy())
+
+                for idx in range(len(final_agops)):
+                    np.save(os.path.join(ep_out_dir, f'right_agop_{idx}.npy'), final_agops[idx])
+                    np.save(os.path.join(ep_out_dir, f'sqrt_right_agop_{idx}.npy'), final_sqrt_agops[idx])
+                    np.save(os.path.join(ep_out_dir, f'left_agop_{idx}.npy'), final_left_agops[idx])
+                    np.save(os.path.join(ep_out_dir, f'sqrt_left_agop_{idx}.npy'), final_sqrt_left_agops[idx])
+
+
+            # if val_acc >= 0.98 and epoch % val_save_freq == 0:
+            #     nfm = model.fc1.weight.t() @ model.fc1.weight
+            #     np.save(os.path.join(out_dir, f'ep_{epoch}_right_nfm.npy'), nfm.detach().cpu().numpy())
+            #
+            #     nfm = model.fc1.weight @ model.fc1.weight.t()
+            #     np.save(os.path.join(out_dir, f'ep_{epoch}_left_nfm.npy'), nfm.detach().cpu().numpy())
 
                 # final_data, final_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer)
                 # np.save(os.path.join(out_dir, f'ep_{epoch}_train_feats.npy'), final_data)
