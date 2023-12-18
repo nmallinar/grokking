@@ -478,11 +478,11 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
 
     # Loop over each batch from the training set
     for batch in train_loader:
-        if agop_weight > 0.0:
-            final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, embedding_layer=embedding_layer)
-        else:
-            with torch.no_grad():
-                final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, embedding_layer=embedding_layer)
+        # if agop_weight > 0.0:
+        #     final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, embedding_layer=embedding_layer)
+        # else:
+        #     with torch.no_grad():
+        #         final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, embedding_layer=embedding_layer)
 
         # Copy data to device if needed
         batch = tuple(t.to(device) for t in batch)
@@ -497,6 +497,15 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         else:
             inputs = F.one_hot(inputs, num_classes).float()
             inputs = inputs.view(inputs.size(0), -1)
+
+        dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        dumb3 = torch.zeros((config.agop_subsample_n, model.num_tokens)).to(config.device)
+
+        dumb4 = torch.zeros((config.agop_subsample_n, model.inp_dim)).to(config.device)
+        dumb5 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        dumb6 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        final_agops, final_left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
 
         # Zero gradient buffers
         optimizer.zero_grad()
