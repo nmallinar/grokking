@@ -285,6 +285,14 @@ def plot_agop(agop, caption, log_key, commit=False):
     )
     wandb.log({log_key: img}, commit=commit)
 
+    eigvals, _ = np.linalg.eig(agop)
+    eigvals = np.sort(eigvals)[::-1]
+    plt.clf()
+    plt.plot(range(len(eigvals)), np.log(eigvals + 1e-10))
+    plt.xlabel('eigenvalue index')
+    plt.ylabel('log(eigenvalue)')
+    wandb.log({f'spectra {log_key}': wandb.Image(plt, caption=caption)}, commit=False)
+
 def visual_weights(model, epoch_idx):
     w0 = model.fc1.weight
     # w0: [h, d]
@@ -356,7 +364,7 @@ def calc_full_agops(model, loader, config, embedding_layer=None):
         else:
             inputs = F.one_hot(inputs, num_tokens).float()
             inputs = inputs.view(inputs.size(0), -1)
-        
+
         nsamps = inputs.size(0)
         total_n += nsamps
 
