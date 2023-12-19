@@ -152,12 +152,12 @@ def main(args: dict):
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
+            #ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
 
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
+            #ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
             '''
 
             final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, embedding_layer=embedding_layer)
@@ -512,11 +512,11 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         # Backward pass
         mse_loss = loss.clone()
 
-        agop_tr = 0.0
-        left_agop_tr = 0.0
-        for idx in range(len(final_agops)):
-            agop_tr += torch.trace(final_agops[idx])
-            left_agop_tr += torch.trace(final_left_agops[idx])
+        #agop_tr = 0.0
+        #left_agop_tr = 0.0
+        #for idx in range(len(final_agops)):
+        #    agop_tr += torch.trace(final_agops[idx])
+        #    left_agop_tr += torch.trace(final_left_agops[idx])
 
         if agop_weight > 0:
             loss += agop_weight * left_agop_tr
@@ -531,8 +531,8 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             "training/accuracy": acc,
             "training/loss": loss,
             "training/mse_loss": mse_loss,
-            "training/agop_tr": agop_tr,
-            "training/left_agop_tr": left_agop_tr,
+            #"training/agop_tr": agop_tr,
+            #"training/left_agop_tr": left_agop_tr,
             "step": wandb.run.step
         }
         wandb.log(metrics)
@@ -630,7 +630,8 @@ def ols_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epo
         train_feats = train_feats @ feature_projection
         val_feats = val_feats @ feature_projection
 
-    sol = np.linalg.pinv(train_feats.T @ train_feats) @ train_feats.T @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
+    #sol = np.linalg.pinv(train_feats.T @ train_feats) @ train_feats.T @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
+    sol = np.linalg.pinv(train_feats) @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
     pred_scores = val_feats @ sol
     pred_labels = np.argmax(pred_scores, axis=1)
 

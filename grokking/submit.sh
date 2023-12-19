@@ -8,8 +8,8 @@
 #SBATCH --account bbjr-delta-gpu
 #SBATCH --partition gpuA100x4         # specify queue, if this doesnt submit try gpu-shared
 #SBATCH --gpus-per-node 1
-#SBATCH --cpus-per-task 8
-#SBATCH --mem 16G
+#SBATCH --cpus-per-task 12
+#SBATCH --mem 24G
 #SBATCH --nodes 1
 #SBATCH --tasks 1
 #SBATCH --tasks-per-node 1
@@ -25,12 +25,12 @@ python cli.py \
   --dim_model 128 \
   --device cuda \
   --model OneLayerFCN \
-  --fcn_hidden_width 256 \
+  --fcn_hidden_width 32 \
   --eval_entk -1 \
   --num_layers 1 \
-  --weight_decay 0.0 \
-  --agop_weight 100.0 \
-  --wandb_proj_name "dec17-grokking" \
+  --weight_decay 1.0 \
+  --agop_weight 0.0 \
+  --wandb_proj_name "dec18-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \
