@@ -67,6 +67,11 @@ def main(args: dict):
     num_tokens = config.prime + 2
     num_tokens = config.prime
 
+    og_train_feats = F.one_hot(og_train_feats, num_tokens).float()
+    og_train_feats = og_train_feats.view(og_train_feats.size(0), -1)
+    og_val_feats = F.one_hot(og_val_feats, num_tokens).float()
+    og_val_feats = og_val_feats.view(og_val_feats.size(0), -1)
+
     embedding_layer = None
     if config.model == 'TwoLayerFCN':
         # embedding_layer = nn.Embedding(num_tokens, config.dim_model)
@@ -153,7 +158,8 @@ def main(args: dict):
 
             import ipdb; ipdb.set_trace()
             w0 = model.get_random_matrix()
-            
+
+            ols_feats(og_train_feats @ w0, og_train_labels, og_val_feats @ w0, og_val_labels, num_tokens, epoch, return_layer='rf', feature_projection=U, proj_key='U')
 
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
