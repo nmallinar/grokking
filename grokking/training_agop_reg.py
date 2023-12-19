@@ -87,7 +87,7 @@ def main(args: dict):
             context_len=context_len,
             init_scale=config.init_scale
         ).to(device)
-        model.fc1.requires_grad_(False)
+        # model.fc1.requires_grad_(False)
     elif config.model == 'rfm':
         embedding_layer = nn.Embedding(num_tokens, config.dim_model)
         emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
@@ -144,10 +144,16 @@ def main(args: dict):
               agop_weight=config.agop_weight)
 
         with torch.no_grad():
+            U, S, Vt = np.linalg.svd(model.fc1.weight.detach().cpu().numpy())
             val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
 
             # if epoch % log_freq == 0:
             #     visual_weights(model, epoch)
+
+            import ipdb; ipdb.set_trace()
+            w0 = model.get_random_matrix()
+            dset = train_dataset.data
+            labels = train_dataset.labels
 
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
@@ -682,3 +688,30 @@ def extract_feats(model, loader, config, embedding_layer=None, return_layer='act
         if to_numpy:
             return final_data.numpy(), final_labels.numpy()
         return final_data, final_labels
+
+# def random_feats_ols(train_feats, train_labels, val_feats, val_labels, num_classes, epoch, feature_projection=None, proj_key=''):
+#     if feature_projection is not None:
+#         train_feats = train_feats @ feature_projection
+#         val_feats = val_feats @ feature_projection
+#
+#     #sol = np.linalg.pinv(train_feats.T @ train_feats) @ train_feats.T @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
+#     sol = np.linalg.pinv(train_feats) @ F.one_hot(torch.tensor(train_labels).long(), num_classes).numpy()
+#     pred_scores = val_feats @ sol
+#     pred_labels = np.argmax(pred_scores, axis=1)
+#
+#     mse = np.mean(np.square(pred_scores - F.one_hot(torch.tensor(val_labels).long(), num_classes).numpy()))
+#     count = np.sum(val_labels == pred_labels)
+#
+#     if feature_projection is not None:
+#         log_key = f'ols_validation/ols_{return_layer}_proj_{proj_key}'
+#     else:
+#         log_key = f'ols_validation/ols_{return_layer}'
+#
+#     metrics = {
+#         f"{log_key}_accuracy": count / len(val_labels),
+#         f"{log_key}_loss": mse,
+#         "epoch": epoch
+#     }
+#     wandb.log(metrics, commit=False)
+#
+#     return count / len(val_labels)
