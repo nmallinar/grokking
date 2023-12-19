@@ -156,8 +156,8 @@ def main(args: dict):
             # if epoch % log_freq == 0:
             #     visual_weights(model, epoch)
 
-            import ipdb; ipdb.set_trace()
-            w0 = model.get_random_matrix()
+            # w0 = model.get_random_matrix()
+            w0 = model.init_w0
 
             ols_feats((og_train_feats @ w0).numpy(), og_train_labels.numpy(), (og_val_feats @ w0).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf', feature_projection=U, proj_key='U')
 
