@@ -73,7 +73,7 @@ def get_data_with_agop_loader(operation, prime, training_fraction, batch_size, a
 
     batch_size = min(batch_size, ceil(len(dataset) / 2))
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
     agop_loader = torch.utils.data.DataLoader(train_dataset, batch_size=agop_batch_size, shuffle=True, drop_last=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 

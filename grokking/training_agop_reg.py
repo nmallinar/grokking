@@ -523,6 +523,8 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         # Backward pass
         mse_loss = loss.clone()
 
+        agop_tr = 0.0
+        left_agop_tr = 0.0
         for idx in range(len(final_agops)):
             agop_tr += torch.trace(final_agops[idx])
             left_agop_tr += torch.trace(final_left_agops[idx])
