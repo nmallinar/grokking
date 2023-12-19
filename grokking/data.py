@@ -61,7 +61,7 @@ def get_data(operation: str, prime: int, training_fraction: float, batch_size: i
 
     return train_loader, val_loader, context_len, train_dataset, val_dataset
 
-def get_data_with_agop_loader(operation, prime, training_fraction, batch_size, agop_batch_size, drop_last=True):
+def get_data_with_agop_loader(operation, prime, training_fraction, batch_size, agop_batch_size):
     inputs, labels = operation_mod_p_data(operation, prime, prime, prime+1)
     dataset = torch.utils.data.TensorDataset(inputs, labels)
     context_len = inputs.shape[1]
@@ -73,8 +73,23 @@ def get_data_with_agop_loader(operation, prime, training_fraction, batch_size, a
 
     batch_size = min(batch_size, ceil(len(dataset) / 2))
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=drop_last)
-    agop_loader = torch.utils.data.DataLoader(train_dataset, batch_size=agop_batch_size, shuffle=True, drop_last=drop_last)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True)
+    agop_loader = torch.utils.data.DataLoader(train_dataset, batch_size=agop_batch_size, shuffle=True, drop_last=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_loader, agop_loader, val_loader, context_len, train_dataset, val_dataset
+    train_feats = []
+    train_labels = []
+    val_feats = []
+    val_labels = []
+    for batch in train_loader:
+        train_feats.append(batch[0])
+        train_labels.append(batch[1])
+    for batch in val_loader:
+        val_feats.append(batch[0])
+        val_labels.append(batch[1])
+    train_feats = torch.cat(train_feats)
+    train_labels = torch.cat(train_labels)
+    val_feats = torch.cat(val_feats)
+    val_labels = torch.cat(val_labels)
+
+    return train_loader, agop_loader, val_loader, context_len, train_dataset, val_dataset, train_feats, train_labels, val_feats, val_labels
