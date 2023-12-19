@@ -4,6 +4,7 @@ from math import ceil
 import torch
 from tqdm import tqdm
 import scipy
+import random
 import wandb
 import numpy as np
 import torchvision
@@ -18,7 +19,6 @@ from rfm import main as rfm_main
 from inf_ntk import ntk_fn, jax_ntk_fn, get_jax_ntk_fn
 
 torch.manual_seed(34)
-import random
 random.seed(23)
 np.random.seed(234)
 torch.set_default_dtype(torch.float32)
@@ -154,38 +154,26 @@ def main(args: dict):
             val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
 
             U = torch.tensor(U)
+            S = torch.tensor(S)
             Vt = torch.tensor(Vt)
-            # if epoch % log_freq == 0:
-            #     visual_weights(model, epoch)
 
-            #U = U.T @ U
-            # 62, 1024
+            # print(U.shape, S.shape, Vt.shape)
+            # torch.Size([62, 62]) (62,) torch.Size([62, 1024])
+
             w0 = model.get_random_matrix()
             U2, S2, Vt2 = np.linalg.svd(w0.numpy(), full_matrices=False)
             U2 = torch.tensor(U2)
             S2 = torch.tensor(S2)
             Vt2 = torch.tensor(Vt2)
-            #mat = U2 @ np.diag(S) @ Vt
-            mat = U @ U.T @ w0 @ Vt.T @ Vt
-            #mat = w0.T
-            #ipdb> print(Vt.shape)
-            #(1024, 62)
-            #ipdb> print(S.shape)
-            #(62,)
-            #ipdb> print(U.shape)
-            #(62, 62)
-            #mat = U.T @ U @ w0 @ Vt.T @ Vt
 
-            #w0 = model.init_w0
-            #mat = torch.tensor(Vt) @ w0 @ torch.tensor(U)
-            #mat = model.fc1.weight.detach().cpu().T
+            mat = w0 @ Vt.T
 
             if config.act_fn == 'pow2':
                 ols_feats((og_train_feats @ mat).pow(2).numpy(), og_train_labels.numpy(), (og_val_feats @ mat).pow(2).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf')
             elif config.act_fn == 'relu':
                 ols_feats(F.relu(og_train_feats @ mat).numpy(), og_train_labels.numpy(), F.relu(og_val_feats @ mat).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf')
             elif config.act_fn == 'swish':
-                ols_feats(F.silu(og_train_feats @ mat).numpy(), og_train_labels.numpy(), F.silu(og_val_feats @ mat).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf') 
+                ols_feats(F.silu(og_train_feats @ mat).numpy(), og_train_labels.numpy(), F.silu(og_val_feats @ mat).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf')
             else:
                 raise Exception()
 
