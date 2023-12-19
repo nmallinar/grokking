@@ -57,7 +57,7 @@ class OneLayerFCN(torch.nn.Module):
     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(w0, -init_scale*bound, init_scale*bound)
-    return w0
+    return w0.T
 
   def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
               dumb4=None, return_layer=None, act='relu'):
