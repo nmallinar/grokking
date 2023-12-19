@@ -32,7 +32,7 @@ class OneLayerFCN(torch.nn.Module):
     super().__init__()
 
     self.num_tokens = num_tokens
-    inp_dim = dim_model * context_len
+    # inp_dim = dim_model * context_len
     inp_dim = self.num_tokens * context_len
     self.inp_dim = inp_dim
     self.hidden_width = hidden_width
@@ -51,6 +51,15 @@ class OneLayerFCN(torch.nn.Module):
     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.out.weight)
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
+
+    self.init_w0 = self.fc1.weight.detach().clone().T
+
+  def get_random_matrix(self, init_scale=1.0):
+    w0 = torch.randn(*list(self.fc1.weight.size()), requires_grad=False)
+    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
+    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    nn.init.uniform_(w0, -init_scale*bound, init_scale*bound)
+    return w0.T
 
   def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
               dumb4=None, return_layer=None, act='relu'):
