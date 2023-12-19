@@ -87,6 +87,7 @@ def main(args: dict):
             context_len=context_len,
             init_scale=config.init_scale
         ).to(device)
+        model.fc1.requires_grad_(False)
     elif config.model == 'rfm':
         embedding_layer = nn.Embedding(num_tokens, config.dim_model)
         emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
@@ -145,13 +146,19 @@ def main(args: dict):
         with torch.no_grad():
             val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
 
-            if epoch % log_freq == 0:
-                visual_weights(model, epoch)
+            # if epoch % log_freq == 0:
+            #     visual_weights(model, epoch)
 
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
             ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1')
+
+            train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
+            val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
+            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
+            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
+            '''
 
             final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, embedding_layer=embedding_layer)
             final_sqrt_agops = []
@@ -163,25 +170,7 @@ def main(args: dict):
                 final_sqrt_left_agops.append(np.real(scipy.linalg.sqrtm(final_left_agops[idx])))
 
             log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False)
-            '''
-            low_rank_left_agops = []
-            low_rank_sqrt_left_agops = []
-            for idx in range(len(final_left_agops)):
-                l, v = np.linalg.eigh(final_left_agops[idx])
-                idx = np.argsort(l)[::-1]
-                l = l[idx]
-                v = v[idx]
-                ncomps = 1
-                lora = v[:,:ncomps] @ np.diag(l[:ncomps]) @ v[:,:ncomps].T
-                sqrt_lora = v[:,:ncomps] @ np.diag(np.sqrt(l[:ncomps])) @ v[:,:ncomps].T
-                low_rank_left_agops.append(lora)
-                low_rank_sqrt_left_agops.append(sqrt_lora)
 
-            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_left_agops[0], proj_key='left_agop')
-            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_sqrt_left_agops[0], proj_key='sqrt_left_agop')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_left_agops[0], proj_key='left_agop')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=low_rank_sqrt_left_agops[0], proj_key='sqrt_left_agop')
-            '''
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
             ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
@@ -248,7 +237,7 @@ def main(args: dict):
                     np.save(os.path.join(ep_out_dir, f'sqrt_right_agop_{idx}.npy'), final_sqrt_agops[idx])
                     np.save(os.path.join(ep_out_dir, f'left_agop_{idx}.npy'), final_left_agops[idx])
                     np.save(os.path.join(ep_out_dir, f'sqrt_left_agop_{idx}.npy'), final_sqrt_left_agops[idx])
-
+            '''
 
             # if val_acc >= 0.98 and epoch % val_save_freq == 0:
             #     nfm = model.fc1.weight.t() @ model.fc1.weight
@@ -498,14 +487,14 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             inputs = F.one_hot(inputs, num_classes).float()
             inputs = inputs.view(inputs.size(0), -1)
 
-        dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-        dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-        dumb3 = torch.zeros((config.agop_subsample_n, model.num_tokens)).to(config.device)
-
-        dumb4 = torch.zeros((config.agop_subsample_n, model.inp_dim)).to(config.device)
-        dumb5 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-        dumb6 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-        final_agops, final_left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
+        # dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        # dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        # dumb3 = torch.zeros((config.agop_subsample_n, model.num_tokens)).to(config.device)
+        #
+        # dumb4 = torch.zeros((config.agop_subsample_n, model.inp_dim)).to(config.device)
+        # dumb5 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        # dumb6 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+        # final_agops, final_left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
 
         # Zero gradient buffers
         optimizer.zero_grad()

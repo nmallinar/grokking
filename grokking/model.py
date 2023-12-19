@@ -32,7 +32,7 @@ class OneLayerFCN(torch.nn.Module):
     super().__init__()
 
     self.num_tokens = num_tokens
-    inp_dim = dim_model * context_len
+    # inp_dim = dim_model * context_len
     inp_dim = self.num_tokens * context_len
     self.inp_dim = inp_dim
     self.hidden_width = hidden_width
