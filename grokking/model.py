@@ -52,8 +52,7 @@ class OneLayerFCN(torch.nn.Module):
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
 
-    self.init_w0 = self.fc1.weight.clone()
-    self.init_w0.requires_grad_(False)
+    self.init_w0 = self.fc1.weight.detach().clone().T
 
   def get_random_matrix(self, init_scale=1.0):
     w0 = torch.randn(*list(self.fc1.weight.size()), requires_grad=False)

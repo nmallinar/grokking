@@ -35,7 +35,7 @@ def main(args: dict):
                dir=args.out_dir)
     # TODO: add wandb name
     # wandb.run.name = f'{wandb.run.id} - {args.model} act_fn={args.act_fn}, agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}'
-    wandb.run.name = f'{wandb.run.id} - {args.model} act_fn={args.act_fn}, agop_weight={args.agop_weight}, wd={args.weight_decay}, init_scale={args.init_scale}'
+    wandb.run.name = f'{wandb.run.id} - {args.model} width={args.fcn_hidden_width}, act_fn={args.act_fn}, agop_weight={args.agop_weight}, wd={args.weight_decay}, init_scale={args.init_scale}'
 
     wandb.run.save()
 
@@ -150,16 +150,44 @@ def main(args: dict):
               agop_weight=config.agop_weight)
 
         with torch.no_grad():
-            U, S, Vt = np.linalg.svd(model.fc1.weight.detach().cpu().numpy())
+            U, S, Vt = np.linalg.svd(model.fc1.weight.detach().T.cpu().numpy(), full_matrices=False)
             val_acc = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer)
 
+            U = torch.tensor(U)
+            Vt = torch.tensor(Vt)
             # if epoch % log_freq == 0:
             #     visual_weights(model, epoch)
 
-            # w0 = model.get_random_matrix()
-            w0 = model.init_w0
+            #U = U.T @ U
+            # 62, 1024
+            w0 = model.get_random_matrix()
+            U2, S2, Vt2 = np.linalg.svd(w0.numpy(), full_matrices=False)
+            U2 = torch.tensor(U2)
+            S2 = torch.tensor(S2)
+            Vt2 = torch.tensor(Vt2)
+            #mat = U2 @ np.diag(S) @ Vt
+            mat = U @ U.T @ w0 @ Vt.T @ Vt
+            #mat = w0.T
+            #ipdb> print(Vt.shape)
+            #(1024, 62)
+            #ipdb> print(S.shape)
+            #(62,)
+            #ipdb> print(U.shape)
+            #(62, 62)
+            #mat = U.T @ U @ w0 @ Vt.T @ Vt
 
-            ols_feats((og_train_feats @ w0).numpy(), og_train_labels.numpy(), (og_val_feats @ w0).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf', feature_projection=U, proj_key='U')
+            #w0 = model.init_w0
+            #mat = torch.tensor(Vt) @ w0 @ torch.tensor(U)
+            #mat = model.fc1.weight.detach().cpu().T
+
+            if config.act_fn == 'pow2':
+                ols_feats((og_train_feats @ mat).pow(2).numpy(), og_train_labels.numpy(), (og_val_feats @ mat).pow(2).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf')
+            elif config.act_fn == 'relu':
+                ols_feats(F.relu(og_train_feats @ mat).numpy(), og_train_labels.numpy(), F.relu(og_val_feats @ mat).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf')
+            elif config.act_fn == 'swish':
+                ols_feats(F.silu(og_train_feats @ mat).numpy(), og_train_labels.numpy(), F.silu(og_val_feats @ mat).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf') 
+            else:
+                raise Exception()
 
             train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
             val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='lin1')
