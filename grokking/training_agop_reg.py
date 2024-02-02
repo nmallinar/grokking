@@ -186,18 +186,18 @@ def main(args: dict):
             '''
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
-            
+
 
             ols_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=final_sqrt_agops[0], proj_key='sqrt_right_agop')
             ntk_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=final_sqrt_agops[0], proj_key='sqrt_right_agop')
-            l, v = np.linalg.eigh(final_sqrt_agops[0])
-            idx = np.argsort(l)[::-1]
-            l = l[idx]
-            v = v[:, idx]
-            for ncomps in range(2, 20):
-                lora = v[:, :ncomps] @ np.diag(l[:ncomps]) @ v[:,:ncomps].T
-                ntk_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_right_agop')
-                ols_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_right_agop')
+            # l, v = np.linalg.eigh(final_sqrt_agops[0])
+            # idx = np.argsort(l)[::-1]
+            # l = l[idx]
+            # v = v[:, idx]
+            # for ncomps in range(2, 20):
+            #     lora = v[:, :ncomps] @ np.diag(l[:ncomps]) @ v[:,:ncomps].T
+            #     ntk_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_right_agop')
+            #     ols_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_right_agop')
 
             #l, v = np.linalg.eigh(final_sqrt_left_agops[0])
             #idx = np.argsort(l)[::-1]
@@ -205,10 +205,10 @@ def main(args: dict):
             #v = v[:, idx]
 
             ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-            
+
             #for ncomps in range(5, 20):
             #    lora = v[:, :ncomps] @ np.diag(l[:ncomps]) @ v[:,:ncomps].T
-            #    
+            #
             #    ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_left_agop')
 
             #train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
@@ -273,6 +273,10 @@ def main(args: dict):
                     np.save(os.path.join(ep_out_dir, f'left_agop_{idx}.npy'), final_left_agops[idx])
                     np.save(os.path.join(ep_out_dir, f'sqrt_left_agop_{idx}.npy'), final_sqrt_left_agops[idx])
 
+
+            if val_acc == 1.0:
+                data, labels = get_synthetic_data(model, config, embedding_layer=embedding_layer, n_points=10000)
+                # base_train_feats, base_val_feats, base_train_labels, base_val_labels
 
             # if val_acc >= 0.98 and epoch % val_save_freq == 0:
             #     nfm = model.fc1.weight.t() @ model.fc1.weight
@@ -628,7 +632,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, config, em
 
 def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epoch, return_layer, feature_projection=None, proj_key=''):
     if feature_projection is not None:
-        feature_projection[feature_projection < 1e-3] = 0 
+        feature_projection[feature_projection < 1e-3] = 0
         train_feats = train_feats @ feature_projection
         val_feats = val_feats @ feature_projection
 
@@ -718,3 +722,23 @@ def extract_feats(model, loader, config, embedding_layer=None, return_layer='act
         if to_numpy:
             return final_data.numpy(), final_labels.numpy()
         return final_data, final_labels
+
+def get_synthetic_data(model, config, embedding_layer=embedding_layer, n_points=10000):
+    with torch.no_grad():
+        input1 = torch.rand(n_points, config.prime)
+        input2 = torch.rand(n_points, config.prime)
+        input1 /= torch.sum(input1, -1)
+        input2 /= torch.sum(input2, -1)
+
+        outputs = []
+        inputs = torch.cat((input1, input2), dim=-1)
+        for idx in range(0, n_points, config.batch_size):
+            batch_input = inputs[idx:idx+config.batch_size,:].to(config.device)
+
+            output = model(batch_input, act=config.act_fn)
+            outputs.append(output.cpu())
+
+        import ipdb; ipdb.set_trace()
+        outputs = torch.cat(outputs, dim=0)
+
+        return inputs, outputs
