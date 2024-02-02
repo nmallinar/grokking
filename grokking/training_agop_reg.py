@@ -278,6 +278,13 @@ def main(args: dict):
                 data, labels = get_synthetic_data(model, config, embedding_layer=embedding_layer, n_points=10000)
                 # base_train_feats, base_val_feats, base_train_labels, base_val_labels
 
+                np.save(os.path.join(ep_out_dir, f'synthetic_data.npy'), data.numpy())
+                np.save(os.path.join(ep_out_dir, f'synthetic_labels.npy'), labels.numpy())
+                np.save(os.path.join(ep_out_dir, f'base_train_data.npy'), base_train_feats)
+                np.save(os.path.join(ep_out_dir, f'base_train_labels.npy'), base_train_labels.numpy())
+                np.save(os.path.join(ep_out_dir, f'base_val_feats.npy'), base_val_feats)
+                np.save(os.path.join(ep_out_dir, f'base_val_labels.npy'), base_val_labels.numpy())
+
             # if val_acc >= 0.98 and epoch % val_save_freq == 0:
             #     nfm = model.fc1.weight.t() @ model.fc1.weight
             #     np.save(os.path.join(out_dir, f'ep_{epoch}_right_nfm.npy'), nfm.detach().cpu().numpy())
@@ -723,12 +730,12 @@ def extract_feats(model, loader, config, embedding_layer=None, return_layer='act
             return final_data.numpy(), final_labels.numpy()
         return final_data, final_labels
 
-def get_synthetic_data(model, config, embedding_layer=embedding_layer, n_points=10000):
+def get_synthetic_data(model, config, embedding_layer=None, n_points=10000):
     with torch.no_grad():
         input1 = torch.rand(n_points, config.prime)
         input2 = torch.rand(n_points, config.prime)
-        input1 /= torch.sum(input1, -1)
-        input2 /= torch.sum(input2, -1)
+        input1 /= torch.sum(input1, -1, keepdims=True)
+        input2 /= torch.sum(input2, -1, keepdims=True)
 
         outputs = []
         inputs = torch.cat((input1, input2), dim=-1)
@@ -738,7 +745,6 @@ def get_synthetic_data(model, config, embedding_layer=embedding_layer, n_points=
             output = model(batch_input, act=config.act_fn)
             outputs.append(output.cpu())
 
-        import ipdb; ipdb.set_trace()
         outputs = torch.cat(outputs, dim=0)
 
         return inputs, outputs
