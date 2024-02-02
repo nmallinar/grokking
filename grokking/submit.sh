@@ -28,12 +28,14 @@ python cli.py \
   --fcn_hidden_width 256 \
   --eval_entk -1 \
   --num_layers 1 \
-  --weight_decay 0.0 \
-  --agop_weight 100.0 \
-  --wandb_proj_name "dec17-grokking" \
+  --weight_decay 1.0 \
+  --agop_weight 0.0 \
+  --wandb_proj_name "jan10-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \
   --momentum 0.0 \
   --num_steps 100000 \
-  --out_dir "/scratch/bbjr/mallina1/grokking_output" 
+  --out_dir "/scratch/bbjr/mallina1/grokking_output" \
+  --act_fn "relu" \
+  --init_scale 1.0

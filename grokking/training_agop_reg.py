@@ -55,7 +55,7 @@ def main(args: dict):
     wandb.define_metric("validation/accuracy", step_metric='epoch')
     wandb.define_metric("validation/loss", step_metric='epoch')
 
-    train_loader, agop_loader, val_loader, context_len, train_dataset, val_dataset = \
+    train_loader, agop_loader, val_loader, context_len, train_dataset, val_dataset, base_train_feats, base_train_labels, base_val_feats, base_val_labels = \
         get_data_with_agop_loader(
             config.operation,
             config.prime,
@@ -65,6 +65,8 @@ def main(args: dict):
         )
     num_tokens = config.prime + 2
     num_tokens = config.prime
+    base_train_feats = F.one_hot(base_train_feats, config.prime).view(base_train_feats.size(0), -1).numpy()
+    base_val_feats = F.one_hot(base_val_feats, config.prime).view(base_val_feats.size(0), -1).numpy()
 
     embedding_layer = None
     if config.model == 'TwoLayerFCN':
@@ -184,13 +186,35 @@ def main(args: dict):
             '''
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
             ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_sqrt_left_agops[0], proj_key='sqrt_left_agop')
+            
 
-            train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
-            val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
-            ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
-            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
+            ols_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=final_sqrt_agops[0], proj_key='sqrt_right_agop')
+            ntk_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=final_sqrt_agops[0], proj_key='sqrt_right_agop')
+            l, v = np.linalg.eigh(final_sqrt_agops[0])
+            idx = np.argsort(l)[::-1]
+            l = l[idx]
+            v = v[:, idx]
+            for ncomps in range(2, 20):
+                lora = v[:, :ncomps] @ np.diag(l[:ncomps]) @ v[:,:ncomps].T
+                ntk_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_right_agop')
+                ols_feats(base_train_feats, base_train_labels, base_val_feats, base_val_labels, num_tokens, epoch, return_layer='base', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_right_agop')
+
+            #l, v = np.linalg.eigh(final_sqrt_left_agops[0])
+            #idx = np.argsort(l)[::-1]
+            #l = l[idx]
+            #v = v[:, idx]
+
+            ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=final_left_agops[0], proj_key='left_agop')
+            
+            #for ncomps in range(5, 20):
+            #    lora = v[:, :ncomps] @ np.diag(l[:ncomps]) @ v[:,:ncomps].T
+            #    
+            #    ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='lin1', feature_projection=lora, proj_key=f'rank{ncomps}_sqrt_left_agop')
+
+            #train_feats, train_labels = extract_feats(model, train_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
+            #val_feats, val_labels = extract_feats(model, val_loader, config, embedding_layer=embedding_layer, return_layer='act_fn(lin1)')
+            #ols_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
+            #ntk_feats(train_feats, train_labels, val_feats, val_labels, num_tokens, epoch, return_layer='act_fn(lin1)')
 
             if config.model == 'TwoLayerFCN':
                 # for later, same as above
@@ -604,6 +628,7 @@ def evaluate(model, val_loader, device, epoch, num_classes, loss_arg, config, em
 
 def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epoch, return_layer, feature_projection=None, proj_key=''):
     if feature_projection is not None:
+        feature_projection[feature_projection < 1e-3] = 0 
         train_feats = train_feats @ feature_projection
         val_feats = val_feats @ feature_projection
 
@@ -638,6 +663,7 @@ def ntk_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epo
 
 def ols_feats(train_feats, train_labels, val_feats, val_labels, num_classes, epoch, return_layer, feature_projection=None, proj_key=''):
     if feature_projection is not None:
+        feature_projection[feature_projection < 1e-3] = 0
         train_feats = train_feats @ feature_projection
         val_feats = val_feats @ feature_projection
 

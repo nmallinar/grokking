@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 from data import ALL_OPERATIONS
 # from training import main
 from training_agop_reg import main
-from training_rf import main_rf
+from training_rf import main as main_rf
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -34,4 +34,4 @@ if __name__ == "__main__":
     parser.add_argument("--init_scale", type=float, default=1.0)
     args = parser.parse_args()
 
-    main_rf(args)
+    main(args)

@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
 from rfm import main as rfm_main
-# from inf_ntk import ntk_fn, jax_ntk_fn, get_jax_ntk_fn
+from inf_ntk import ntk_fn, jax_ntk_fn, get_jax_ntk_fn
 
 torch.manual_seed(34)
 random.seed(23)
@@ -161,13 +161,14 @@ def main(args: dict):
             # print(U.shape, S.shape, Vt.shape)
             # torch.Size([62, 62]) (62,) torch.Size([62, 1024])
 
-            w0 = model.get_random_matrix()
-            U2, S2, Vt2 = np.linalg.svd(w0.numpy(), full_matrices=False)
-            U2 = torch.tensor(U2)
-            S2 = torch.tensor(S2)
-            Vt2 = torch.tensor(Vt2)
+            #w0 = model.get_random_matrix()
+            w0 = model.init_w0
+            #U2, S2, Vt2 = np.linalg.svd(w0.numpy(), full_matrices=False)
+            #U2 = torch.tensor(U2)
+            #S2 = torch.tensor(S2)
+            #Vt2 = torch.tensor(Vt2)
 
-            mat = w0 @ Vt.T
+            mat = U.T @ w0 @ Vt.T
 
             if config.act_fn == 'pow2':
                 ols_feats((og_train_feats @ mat).pow(2).numpy(), og_train_labels.numpy(), (og_val_feats @ mat).pow(2).numpy(), og_val_labels.numpy(), num_tokens, epoch, return_layer='rf')
@@ -437,8 +438,8 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         #    agop_tr += torch.trace(final_agops[idx])
         #    left_agop_tr += torch.trace(final_left_agops[idx])
 
-        if agop_weight > 0:
-            loss += agop_weight * left_agop_tr
+        #if agop_weight > 0:
+        #    loss += agop_weight * left_agop_tr
 
         loss.backward()
 
