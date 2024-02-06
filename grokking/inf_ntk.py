@@ -58,6 +58,51 @@ def ntk_fn(x, y, M=None, depth=1, bias=0, jax_rescale=False):
     scale_factor = 3*(2**(depth-1))
     return S_k_minus_1 / scale_factor, N_k_minus_1 / scale_factor
 
+def ep3_ntk_relu(X, Z, depth=1, bias=0.):
+    """
+    Returns the evaluation of nngp and ntk kernels
+    for fully connected neural networks
+    with ReLU nonlinearity.
+
+    depth  (int): number of layers of the network
+    bias (float): (default=0.)
+    """
+    from torch import acos, pi
+    kappa_0 = lambda u: (1-acos(u)/pi)
+    kappa_1 = lambda u: u*kappa_0(u) + (1-u.pow(2)).sqrt()/pi
+    Z = Z if Z is not None else X
+    norm_x = X.norm(dim=-1)[:, None].clip(min=eps)
+    norm_z = Z.norm(dim=-1)[None, :].clip(min=eps)
+    S = X @ Z.T
+    N = S + bias**2
+    for k in range(1, depth):
+        in_ = (S/norm_x/norm_z).clip(min=-1+eps,max=1-eps)
+        S = norm_x*norm_z*kappa_1(in_)
+        N = N * kappa_0(in_) + S + bias**2
+    return N
+
+def ep3_ntk_relu_unit_sphere(X, Z, depth=1, bias=0.):
+    """
+    Returns the evaluation of nngp and ntk kernels
+    for fully connected neural networks
+    with ReLU nonlinearity.
+    Assumes inputs are normalized to unit norm.
+
+    depth  (int): number of layers of the network
+    bias (float): (default=0.)
+    """
+    from torch import acos, pi
+    kappa_0 = lambda u: (1-acos(u)/pi)
+    kappa_1 = lambda u: u*kappa_0(u) + (1-u.pow(2)).sqrt()/pi
+    Z = Z if Z is not None else X
+    S = X @ Z.T
+    N = S + bias**2
+    for k in range(1, depth):
+        in_ = (S).clip(min=-1+eps,max=1-eps)
+        S = kappa_1(in_)
+        N = N * kappa_0(in_) + S + bias**2
+    return N
+
 def test_ntk():
     '''
     Observations on rescale factors between this PyTorch NTK/NNGP and Jax NTK/NNGP
