@@ -58,3 +58,12 @@ test_preds = K_te @ alpha
 test_preds = test_preds.argmax(-1)
 accuracy = sum(test_preds == y_test_idx) / len(test_preds)
 print(f'Testing accuracy: {accuracy}')
+
+
+del K_te
+
+K_te = kernel_fn(X_test, X_train)
+test_preds = K_te @ K_zx.T @ alpha
+test_preds = test_preds.argmax(-1)
+accuracy = sum(test_preds == y_test_idx) / len(test_preds)
+print(f'Testing accuracy 2: {accuracy}')
