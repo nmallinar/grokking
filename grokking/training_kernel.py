@@ -11,7 +11,7 @@ from eigenpro2.models import KernelModel
 DATA_DIR = '/scratch/bbjr/mallina1/grokking_output/feb2-grokking/tmwu613g/epoch_460'
 n_classes = 31
 n_centers = 10000
-n_train = 20000
+n_train = 5000
 ridge = 0.0
 
 #kernel_fn = lambda x, z: ep3_ntk_relu(x, z, depth=10)
