@@ -5,7 +5,7 @@ import os
 import torch.nn.functional as F
 
 from classic_kernel import euclidean_distances, laplacian, gaussian
-from inf_ntk import ep3_ntk_relu
+from inf_ntk import ep3_ntk_relu, jax_ntk_fn
 from eigenpro2.models import KernelModel
 
 DATA_DIR = '/scratch/bbjr/mallina1/grokking_output/feb2-grokking/tmwu613g/epoch_460'
@@ -17,6 +17,7 @@ ridge = 0.0
 #kernel_fn = lambda x, z: ep3_ntk_relu(x, z, depth=10)
 kernel_fn = lambda x, z: laplacian(x, z, 1.0)
 #kernel_fn = lambda x, z: euclidean_distances(x, z, squared=True)
+#kernel_fn = lambda x, z: jax_ntk_fn(x, z, M=None, depth=10, bias=0, kernel_fn=None)
 
 X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_data.npy'))).float()
 y_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_labels.npy'))).float()
