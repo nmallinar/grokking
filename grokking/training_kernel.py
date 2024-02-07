@@ -6,15 +6,17 @@ import torch.nn.functional as F
 
 from classic_kernel import euclidean_distances, laplacian, gaussian
 from inf_ntk import ep3_ntk_relu
+from eigenpro2.models import KernelModel
 
 DATA_DIR = '/scratch/bbjr/mallina1/grokking_output/feb2-grokking/tmwu613g/epoch_460'
 n_classes = 31
-n_centers = 50000
-n_train = 100000
+n_centers = 10000
+n_train = 20000
 ridge = 0.0
 
-# kernel_fn = lambda x, z: ep3_ntk_relu(x, z, depth=10)
-kernel_fn = lambda x, z: euclidean_distances(x, z, squared=True)
+#kernel_fn = lambda x, z: ep3_ntk_relu(x, z, depth=10)
+kernel_fn = lambda x, z: laplacian(x, z, 1.0)
+#kernel_fn = lambda x, z: euclidean_distances(x, z, squared=True)
 
 X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_data.npy'))).float()
 y_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_labels.npy'))).float()
@@ -30,6 +32,18 @@ y_test = F.one_hot(y_test_idx, n_classes).float()
 
 right_nfm = torch.tensor(np.load(os.path.join(DATA_DIR, 'right_nfm.npy'))).float()
 right_agop = torch.tensor(np.load(os.path.join(DATA_DIR, 'right_agop_0.npy'))).float()
+
+if torch.cuda.is_available():
+    DEVICE = torch.device("cuda")
+    DEV_MEM = torch.cuda.get_device_properties(DEVICE).total_memory//1024**3 - 1 # GPU memory in GB, keeping aside 1GB for safety
+else:
+    DEVICE = torch.device("cpu")
+    DEV_MEM = 8 # RAM available for computing
+
+model = KernelModel(kernel_fn, X_train, n_classes, device=DEVICE)
+result = model.fit(X_train, y_train, X_test, y_test, epochs=30, print_every=1, mem_gb=DEV_MEM)
+#import sys
+#sys.exit(0)
 
 # (z, d)
 perm_idx = torch.randperm(n_train)[:n_centers]
@@ -50,7 +64,7 @@ train_preds = train_preds.argmax(-1)
 accuracy = sum(train_preds == y_train_idx) / n_train
 print(f'Training accuracy: {accuracy}')
 
-del K_zz, K_zx
+del K_zz
 
 # (m, n)
 K_te = kernel_fn(X_test, centers)
@@ -60,10 +74,10 @@ accuracy = sum(test_preds == y_test_idx) / len(test_preds)
 print(f'Testing accuracy: {accuracy}')
 
 
-del K_te
+#del K_te
 
-K_te = kernel_fn(X_test, X_train)
-test_preds = K_te @ K_zx.T @ alpha
-test_preds = test_preds.argmax(-1)
-accuracy = sum(test_preds == y_test_idx) / len(test_preds)
-print(f'Testing accuracy 2: {accuracy}')
+#K_te = kernel_fn(X_test, X_train)
+#test_preds = K_te @ K_zx.T @ alpha
+#test_preds = test_preds.argmax(-1)
+#accuracy = sum(test_preds == y_test_idx) / len(test_preds)
+#print(f'Testing accuracy 2: {accuracy}')

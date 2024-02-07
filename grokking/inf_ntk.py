@@ -67,6 +67,7 @@ def ep3_ntk_relu(X, Z, depth=1, bias=0.):
     depth  (int): number of layers of the network
     bias (float): (default=0.)
     """
+    eps = 1e-12
     from torch import acos, pi
     kappa_0 = lambda u: (1-acos(u)/pi)
     kappa_1 = lambda u: u*kappa_0(u) + (1-u.pow(2)).sqrt()/pi
@@ -92,6 +93,7 @@ def ep3_ntk_relu_unit_sphere(X, Z, depth=1, bias=0.):
     bias (float): (default=0.)
     """
     from torch import acos, pi
+    eps = 1e-12
     kappa_0 = lambda u: (1-acos(u)/pi)
     kappa_1 = lambda u: u*kappa_0(u) + (1-u.pow(2)).sqrt()/pi
     Z = Z if Z is not None else X
