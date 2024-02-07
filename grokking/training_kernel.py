@@ -44,22 +44,19 @@ else:
 model = KernelModel(kernel_fn, X_train, n_classes, device=DEVICE)
 result = model.fit(X_train, y_train, X_test, y_test, epochs=30, print_every=1, mem_gb=DEV_MEM)
 
-# K_xx = kernel_fn(X_train, X_train).numpy()
-# alpha = scipy.linalg.solve(K_xx + ridge * np.eye(n_train), y_train)
-# # alpha = torch.linalg.pinv(K_xx + ridge * torch.eye(n_train)) @ y_train
-# train_preds = K_xx @ alpha
-# train_preds = train_preds.argmax(-1)
-# accuracy = sum(train_preds == y_train_idx.numpy()) / n_train
-# print(f'Training accuracy: {accuracy}')
-#
-# # (m, n)
-# K_te = kernel_fn(X_test, X_train).numpy()
-# test_preds = K_te @ alpha
-# test_preds = test_preds.argmax(-1)
-# accuracy = sum(test_preds == y_test_idx.numpy()) / len(test_preds)
-# print(f'Testing accuracy: {accuracy}')
-# import sys
-# sys.exit(0)
+K_xx = kernel_fn(X_train, X_train).numpy()
+alpha = scipy.linalg.solve(K_xx + ridge * np.eye(n_train), y_train)
+train_preds = K_xx @ alpha
+train_preds = train_preds.argmax(-1)
+accuracy = sum(train_preds == y_train_idx.numpy()) / n_train
+print(f'Training accuracy: {accuracy}')
+
+# (m, n)
+K_te = kernel_fn(X_test, X_train).numpy()
+test_preds = K_te @ alpha
+test_preds = test_preds.argmax(-1)
+accuracy = sum(test_preds == y_test_idx.numpy()) / len(test_preds)
+print(f'Testing accuracy: {accuracy}')
 
 # (z, d)
 perm_idx = torch.randperm(n_train)[:n_centers]
