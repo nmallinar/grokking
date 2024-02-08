@@ -18,19 +18,17 @@ kernel_fn = lambda x, z: ep3_ntk_relu(x, z, depth=2)
 #kernel_fn = lambda x, z: laplacian(x, z, 1.0)
 #kernel_fn = lambda x, z: jax_ntk_fn(x, z, M=None, depth=2, bias=0, kernel_fn=None)[1]
 
-#X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_data.npy'))).float()
-#y_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_labels.npy'))).float()
+X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_data.npy'))).float()
+y_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_labels.npy'))).float()
 
-X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_train_data.npy'))).float()
-y_train_idx = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_train_labels.npy')))
-y_train = F.one_hot(y_train_idx, n_classes).float()
-print(X_train.shape, y_train.shape)
-n_train = X_train.shape[0]
+X_train_orig = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_train_data.npy'))).float()
+y_train_orig_idx = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_train_labels.npy')))
+y_train_orig = F.one_hot(y_train_orig_idx, n_classes).float()
 
-#perm_idx = torch.randperm(X_train.shape[0])[:n_train]
-#X_train = X_train[perm_idx]
-#y_train = y_train[perm_idx]
-#y_train_idx = y_train.argmax(-1)
+perm_idx = torch.randperm(X_train.shape[0])[:n_train]
+X_train = X_train[perm_idx]
+y_train = y_train[perm_idx]
+y_train_idx = y_train.argmax(-1)
 
 X_test = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_val_feats.npy'))).float()
 y_test_idx = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_val_labels.npy')))
@@ -41,29 +39,46 @@ right_agop = torch.tensor(np.load(os.path.join(DATA_DIR, 'right_agop_0.npy'))).f
 X_train = X_train @ right_nfm
 X_test = X_test @ right_nfm
 
-if torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-    DEV_MEM = torch.cuda.get_device_properties(DEVICE).total_memory//1024**3 - 1 # GPU memory in GB, keeping aside 1GB for safety
-else:
-    DEVICE = torch.device("cpu")
-    DEV_MEM = 8 # RAM available for computing
-
-model = KernelModel(kernel_fn, X_train, n_classes, device=DEVICE)
-result = model.fit(X_train, y_train, X_test, y_test, epochs=5, print_every=1, mem_gb=DEV_MEM)
+# if torch.cuda.is_available():
+#     DEVICE = torch.device("cuda")
+#     DEV_MEM = torch.cuda.get_device_properties(DEVICE).total_memory//1024**3 - 1 # GPU memory in GB, keeping aside 1GB for safety
+# else:
+#     DEVICE = torch.device("cpu")
+#     DEV_MEM = 8 # RAM available for computing
+#
+# model = KernelModel(kernel_fn, X_train, n_classes, device=DEVICE)
+# result = model.fit(X_train, y_train, X_test, y_test, epochs=5, print_every=1, mem_gb=DEV_MEM)
 
 K_xx = kernel_fn(X_train, X_train).numpy()
 alpha = scipy.linalg.solve(K_xx + ridge * np.eye(n_train), y_train)
 train_preds = K_xx @ alpha
+mse = np.mean((train_preds - y_train)**2)
+
 train_preds = train_preds.argmax(-1)
 accuracy = sum(train_preds == y_train_idx.numpy()) / n_train
-print(f'Training accuracy: {accuracy}')
+print(f'Synthetic training MSE:\t{mse}')
+print(f'Synthetic training accuracy:\t{accuracy}')
 
 # (m, n)
 K_te = kernel_fn(X_test, X_train).numpy()
 test_preds = K_te @ alpha
+mse = np.mean((test_preds - y_test)**2)
+
 test_preds = test_preds.argmax(-1)
 accuracy = sum(test_preds == y_test_idx.numpy()) / len(test_preds)
-print(f'Testing accuracy: {accuracy}')
+print(f'Original test set MSE:\t{mse}')
+print(f'Original test set accuracy:\t{accuracy}')
+
+K_te = kernel_fn(X_train_orig, X_train).numpy()
+test_preds = K_te @ alpha
+mse = np.mean((test_preds - y_train_orig)**2)
+
+test_preds = test_preds.argmax(-1)
+accuracy = sum(test_preds == y_train_orig_idx.numpy()) / len(test_preds)
+print(f'Original train set MSE:\t{mse}')
+print(f'Original train set accuracy: {accuracy}')
+
+
 import sys
 sys.exit(0)
 

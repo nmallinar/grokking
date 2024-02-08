@@ -10,7 +10,7 @@ import torchvision
 import matplotlib.pyplot as plt
 
 from data import get_data_with_agop_loader
-from model import TwoLayerFCN, OneLayerFCN
+from model import TwoLayerFCN, OneLayerFCN, FourLayerFCN
 import torch.nn.functional as F
 from torch import nn
 from torch.func import jacrev
@@ -75,6 +75,14 @@ def main(args: dict):
         # embedding_layer = embedding_layer.to(device)
 
         model = TwoLayerFCN(
+            dim_model=config.dim_model,
+            num_tokens=num_tokens,
+            hidden_width=config.fcn_hidden_width,
+            context_len=context_len,
+            init_scale=config.init_scale
+        ).to(device)
+    elif config.model == 'FourLayerFCN':
+        model = FourLayerFCN(
             dim_model=config.dim_model,
             num_tokens=num_tokens,
             hidden_width=config.fcn_hidden_width,
@@ -464,7 +472,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
     # w_0: (k, d)
     # left_nfm: w_0 @ w_0.T
     # right_nfm: w_0.T @ w_0
-    if config.model == 'TwoLayerFCN':
+    if config.model == 'TwoLayerFCN' or config.model == 'FourLayerFCN':
         left_idx = [0, 1]
         right_idx = [2, 3]
         layer_idx = [0, 1, 0, 1]
