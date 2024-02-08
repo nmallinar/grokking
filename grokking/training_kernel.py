@@ -14,18 +14,23 @@ n_centers = 10000
 n_train = 20000
 ridge = 0.0
 
-#kernel_fn = lambda x, z: ep3_ntk_relu(x, z, depth=10)
-kernel_fn = lambda x, z: laplacian(x, z, 1.0)
-#kernel_fn = lambda x, z: euclidean_distances(x, z, squared=True)
-#kernel_fn = lambda x, z: jax_ntk_fn(x, z, M=None, depth=10, bias=0, kernel_fn=None)
+kernel_fn = lambda x, z: ep3_ntk_relu(x, z, depth=2)
+#kernel_fn = lambda x, z: laplacian(x, z, 1.0)
+#kernel_fn = lambda x, z: jax_ntk_fn(x, z, M=None, depth=2, bias=0, kernel_fn=None)[1]
 
-X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_data.npy'))).float()
-y_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_labels.npy'))).float()
+#X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_data.npy'))).float()
+#y_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'synthetic_labels.npy'))).float()
 
-perm_idx = torch.randperm(X_train.shape[0])[:n_train]
-X_train = X_train[perm_idx]
-y_train = y_train[perm_idx]
-y_train_idx = y_train.argmax(-1)
+X_train = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_train_data.npy'))).float()
+y_train_idx = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_train_labels.npy')))
+y_train = F.one_hot(y_train_idx, n_classes).float()
+print(X_train.shape, y_train.shape)
+n_train = X_train.shape[0]
+
+#perm_idx = torch.randperm(X_train.shape[0])[:n_train]
+#X_train = X_train[perm_idx]
+#y_train = y_train[perm_idx]
+#y_train_idx = y_train.argmax(-1)
 
 X_test = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_val_feats.npy'))).float()
 y_test_idx = torch.tensor(np.load(os.path.join(DATA_DIR, 'base_val_labels.npy')))
@@ -33,6 +38,8 @@ y_test = F.one_hot(y_test_idx, n_classes).float()
 
 right_nfm = torch.tensor(np.load(os.path.join(DATA_DIR, 'right_nfm.npy'))).float()
 right_agop = torch.tensor(np.load(os.path.join(DATA_DIR, 'right_agop_0.npy'))).float()
+X_train = X_train @ right_nfm
+X_test = X_test @ right_nfm
 
 if torch.cuda.is_available():
     DEVICE = torch.device("cuda")
@@ -42,7 +49,7 @@ else:
     DEV_MEM = 8 # RAM available for computing
 
 model = KernelModel(kernel_fn, X_train, n_classes, device=DEVICE)
-result = model.fit(X_train, y_train, X_test, y_test, epochs=30, print_every=1, mem_gb=DEV_MEM)
+result = model.fit(X_train, y_train, X_test, y_test, epochs=5, print_every=1, mem_gb=DEV_MEM)
 
 K_xx = kernel_fn(X_train, X_train).numpy()
 alpha = scipy.linalg.solve(K_xx + ridge * np.eye(n_train), y_train)
@@ -57,6 +64,8 @@ test_preds = K_te @ alpha
 test_preds = test_preds.argmax(-1)
 accuracy = sum(test_preds == y_test_idx.numpy()) / len(test_preds)
 print(f'Testing accuracy: {accuracy}')
+import sys
+sys.exit(0)
 
 # (z, d)
 perm_idx = torch.randperm(n_train)[:n_centers]
