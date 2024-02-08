@@ -237,7 +237,7 @@ def main(args: dict):
             if config.model == 'OneLayerFCN':
                 weights = [model.fc1.weight.detach()]
                 idx_range = 1
-            elif config.model == 'TwoLayerFCN':
+            elif config.model == 'TwoLayerFCN' or config.model == 'FourLayerFCN':
                 weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
                 idx_range = 2
 
