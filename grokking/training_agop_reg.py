@@ -99,10 +99,10 @@ def main(args: dict):
         ).to(device)
     elif config.model == 'rfm':
         embedding_layer = nn.Embedding(num_tokens, config.dim_model)
-        emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
-        embedding_layer.load_state_dict({
-            'weight': torch.Tensor(emb_state)
-        })
+        # emb_state = np.load('grokking_outputs/nov27_proper_agop/embedding_layer.npy')
+        # embedding_layer.load_state_dict({
+        #     'weight': torch.Tensor(emb_state)
+        # })
         embedding_layer.requires_grad_(False)
         rfm_main(num_tokens, config.dim_model,
                  train_loader, val_loader,
@@ -283,7 +283,7 @@ def main(args: dict):
 
 
             if val_acc == 1.0:
-                data, labels = get_synthetic_data(model, config, embedding_layer=embedding_layer, n_points=10000)
+                data, labels = get_synthetic_data(model, config, embedding_layer=embedding_layer, n_points=1000000)
                 # base_train_feats, base_val_feats, base_train_labels, base_val_labels
 
                 np.save(os.path.join(ep_out_dir, f'synthetic_data.npy'), data.numpy())
