@@ -9,7 +9,7 @@ import numpy as np
 import torchvision
 import matplotlib.pyplot as plt
 
-from data import get_data_with_agop_loader
+from data import get_data_with_agop_loader, get_augmented_data_with_agop_loader
 from model import TwoLayerFCN, OneLayerFCN, FourLayerFCN
 import torch.nn.functional as F
 from torch import nn
@@ -67,7 +67,7 @@ def main(args: dict):
             config.batch_size,
             config.agop_subsample_n
         )
-    num_tokens = config.prime
+    
     base_train_feats = F.one_hot(base_train_feats, num_tokens).view(base_train_feats.size(0), -1).numpy()
     base_val_feats = F.one_hot(base_val_feats, num_tokens).view(base_val_feats.size(0), -1).numpy()
     print(base_train_feats.shape)
@@ -163,7 +163,7 @@ def main(args: dict):
             if epoch % log_freq == 0:
                 visual_weights(model, epoch)
 
-            final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, embedding_layer=embedding_layer)
+            final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=embedding_layer)
             final_sqrt_agops = []
             final_sqrt_left_agops = []
             for idx in range(len(final_agops)):
@@ -341,12 +341,11 @@ def visual_weights(model, epoch_idx):
     plt.ylabel('log(eigenvalue)')
     wandb.log({"spectra w0t_w0": wandb.Image(plt)}, commit=False)
 
-def calc_full_agops(model, loader, config, embedding_layer=None):
-    num_tokens = config.prime
+def calc_full_agops(model, loader, config, num_tokens, embedding_layer=None):
 
     dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
     dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-    dumb3 = torch.zeros((config.agop_subsample_n, model.num_tokens)).to(config.device)
+    dumb3 = torch.zeros((config.agop_subsample_n, config.prime)).to(config.device)
 
     dumb4 = torch.zeros((config.agop_subsample_n, model.inp_dim)).to(config.device)
     dumb5 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)

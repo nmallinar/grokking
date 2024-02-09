@@ -20,23 +20,23 @@
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
 python cli.py \
   --run "agop2" \
-  --training_fraction 0.5 \
+  --training_fraction 0.1 \
   --prime 31 \
   --batch_size 32 \
   --dim_model 128 \
   --device cuda \
-  --model FourLayerFCN \
+  --model OneLayerFCN \
   --fcn_hidden_width 256 \
   --eval_entk -1 \
   --num_layers 1 \
-  --weight_decay 1.0 \
+  --weight_decay 0.0 \
   --agop_weight 0.0 \
-  --wandb_proj_name "feb2-grokking" \
+  --wandb_proj_name "feb8-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \
   --momentum 0.0 \
-  --num_steps 100000 \
+  --num_steps 10000000 \
   --out_dir "/scratch/bbjr/mallina1/grokking_output" \
   --act_fn "relu" \
-  --init_scale 1.0
+  --init_scale 1.0 
