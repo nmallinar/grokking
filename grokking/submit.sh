@@ -24,13 +24,13 @@ python cli.py \
   --batch_size 32 \
   --dim_model 128 \
   --device cuda \
-  --model OneLayerFCN \
+  --model FourLayerFCN \
   --fcn_hidden_width 256 \
   --eval_entk -1 \
   --num_layers 1 \
   --weight_decay 1.0 \
   --agop_weight 0.0 \
-  --wandb_proj_name "jan10-grokking" \
+  --wandb_proj_name "feb2-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \
