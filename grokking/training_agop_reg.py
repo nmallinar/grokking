@@ -138,7 +138,7 @@ def main(args: dict):
 
     viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
     val_save_freq = 500
-    log_freq = 20
+    log_freq = 100
 
     if embedding_layer is not None:
         np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
