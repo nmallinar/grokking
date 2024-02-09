@@ -23,6 +23,23 @@ ALL_OPERATIONS = {
     **ALL_MODULO_OPERATIONS,
 }
 
+def operation_mod_p_data_augmented(operation: str, p: int, n: int):
+    """
+    x◦y (mod p) for 0 <= x < p, 1 <= y < p if operation in DIVISION_MODULO_OPERATIONS
+    x◦y (mod p) for 0 <= x, y < p otherwise
+    """
+    x = torch.arange(0, n)
+    y = torch.arange(0 if not operation in DIVISION_MODULO_OPERATIONS else 1, n)
+    x, y = torch.cartesian_prod(x, y).T
+
+    x, y, z = ALL_OPERATIONS[operation](x, y, p)
+    results = z.remainder(p)
+
+    inputs = torch.stack([x, y], dim=1)
+    labels = results
+
+    return inputs, labels
+
 def operation_mod_p_data(operation: str, p: int, eq_token: int, op_token: int):
     """
     x◦y (mod p) for 0 <= x < p, 1 <= y < p if operation in DIVISION_MODULO_OPERATIONS
@@ -63,6 +80,39 @@ def get_data(operation: str, prime: int, training_fraction: float, batch_size: i
 
 def get_data_with_agop_loader(operation, prime, training_fraction, batch_size, agop_batch_size, drop_last=True):
     inputs, labels = operation_mod_p_data(operation, prime, prime, prime+1)
+    dataset = torch.utils.data.TensorDataset(inputs, labels)
+    context_len = inputs.shape[1]
+
+    train_size = int(training_fraction * len(dataset))
+    val_size = len(dataset) - train_size
+
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
+
+    batch_size = min(batch_size, ceil(len(dataset) / 2))
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=drop_last)
+    agop_loader = torch.utils.data.DataLoader(train_dataset, batch_size=agop_batch_size, shuffle=True, drop_last=drop_last)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    train_feats = []
+    train_labels = []
+    val_feats = []
+    val_labels = []
+    for batch in train_loader:
+        train_feats.append(batch[0])
+        train_labels.append(batch[1])
+    for batch in val_loader:
+        val_feats.append(batch[0])
+        val_labels.append(batch[1])
+    train_feats = torch.cat(train_feats)
+    train_labels = torch.cat(train_labels)
+    val_feats = torch.cat(val_feats)
+    val_labels = torch.cat(val_labels)
+
+    return train_loader, agop_loader, val_loader, context_len, train_dataset, val_dataset, train_feats, train_labels, val_feats, val_labels
+
+def get_augmented_data_with_agop_loader(operation, prime, n, training_fraction, batch_size, agop_batch_size, drop_last=True):
+    inputs, labels = operation_mod_p_data_augmented(operation, prime, n)
     dataset = torch.utils.data.TensorDataset(inputs, labels)
     context_len = inputs.shape[1]
 

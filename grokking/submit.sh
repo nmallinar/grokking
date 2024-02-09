@@ -19,6 +19,7 @@
 #source /projects/bbjr/mallina1/envs/torch2/bin/activate
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
 python cli.py \
+  --run "agop2" \
   --training_fraction 0.5 \
   --prime 31 \
   --batch_size 32 \

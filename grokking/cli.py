@@ -2,11 +2,13 @@ from argparse import ArgumentParser
 
 from data import ALL_OPERATIONS
 # from training import main
-from training_agop_reg import main
-from training_rf import main as main_rf
+from training_agop_reg import main as main1
+from training_agop_reg2 import main as main2
+from training_rf import main as main3
 
 if __name__ == "__main__":
     parser = ArgumentParser()
+    parser.add_argument("--run", type=str, default="agop2", choices={'agop1', 'agop2', 'random_feats'})
     parser.add_argument("--wandb_offline", action='store_true', default=False)
     parser.add_argument("--wandb_proj_name", type=str, default="neil-grokking-test")
     parser.add_argument("--operation", type=str, choices=ALL_OPERATIONS.keys(), default="x/y")
@@ -34,4 +36,9 @@ if __name__ == "__main__":
     parser.add_argument("--init_scale", type=float, default=1.0)
     args = parser.parse_args()
 
-    main(args)
+    if args.run == 'agop1':
+        main1(args)
+    elif args.run == 'agop2':
+        main2(args)
+    elif args.run == 'random_feats':
+        main3(args)

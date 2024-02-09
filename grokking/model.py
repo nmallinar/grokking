@@ -28,8 +28,11 @@ class FCNEmbedded(torch.nn.Module):
 
 class OneLayerFCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, hidden_width: int,
-               context_len: int, init_scale=1.0):
+               context_len: int, init_scale=1.0, n_classes=-1):
     super().__init__()
+
+    if n_classes == -1:
+        n_classes = num_tokens
 
     self.num_tokens = num_tokens
     # inp_dim = dim_model * context_len
@@ -39,7 +42,7 @@ class OneLayerFCN(torch.nn.Module):
     self.init_scale = init_scale
 
     self.fc1 = nn.Linear(inp_dim, hidden_width, bias=False)
-    self.out = nn.Linear(hidden_width, num_tokens, bias=False)
+    self.out = nn.Linear(hidden_width, n_classes, bias=False)
 
     self.reset_params(init_scale=init_scale)
 
@@ -98,8 +101,11 @@ class OneLayerFCN(torch.nn.Module):
 
 class TwoLayerFCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, hidden_width: int,
-               context_len: int, init_scale=1.0):
+               context_len: int, init_scale=1.0, n_classes=-1):
     super().__init__()
+
+    if n_classes == -1:
+        n_classes = num_tokens
 
     self.num_tokens = num_tokens
     inp_dim = dim_model * context_len
@@ -109,7 +115,7 @@ class TwoLayerFCN(torch.nn.Module):
 
     self.fc1 = nn.Linear(inp_dim, hidden_width, bias=False)
     self.fc2 = nn.Linear(hidden_width, hidden_width, bias=False)
-    self.out = nn.Linear(hidden_width, num_tokens, bias=False)
+    self.out = nn.Linear(hidden_width, n_classes, bias=False)
 
     self.reset_params(init_scale=init_scale)
 
@@ -172,8 +178,11 @@ class TwoLayerFCN(torch.nn.Module):
 
 class FourLayerFCN(torch.nn.Module):
   def __init__(self, dim_model: int, num_tokens: int, hidden_width: int,
-               context_len: int, init_scale=1.0):
+               context_len: int, init_scale=1.0, n_classes=-1):
     super().__init__()
+
+    if n_classes == -1:
+        n_classes = num_tokens
 
     self.num_tokens = num_tokens
     inp_dim = dim_model * context_len
@@ -185,7 +194,7 @@ class FourLayerFCN(torch.nn.Module):
     self.fc2 = nn.Linear(hidden_width, hidden_width, bias=False)
     self.fc3 = nn.Linear(hidden_width, hidden_width, bias=False)
     self.fc4 = nn.Linear(hidden_width, hidden_width, bias=False)
-    self.out = nn.Linear(hidden_width, num_tokens, bias=False)
+    self.out = nn.Linear(hidden_width, n_classes, bias=False)
 
     self.reset_params(init_scale=init_scale)
 
