@@ -14,6 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--operation", type=str, choices=ALL_OPERATIONS.keys(), default="x/y")
     parser.add_argument("--training_fraction", type=float, default=0.5)
     parser.add_argument("--prime", type=int, default=97)
+    parser.add_argument("--num_tokens", type=int, default=97)
     parser.add_argument("--num_layers", type=int, default=2)
     parser.add_argument("--dim_model", type=int, default=128)
     parser.add_argument("--num_heads", type=int, default=4)
@@ -34,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("--out_dir", type=str, default="/scratch/bbjr/mallina1/grokking_output")
     parser.add_argument("--act_fn", type=str, default="relu")
     parser.add_argument("--init_scale", type=float, default=1.0)
+    parser.add_argument("--skip_agop_comps", action='store_true', default=False)
     args = parser.parse_args()
 
     if args.run == 'agop1':

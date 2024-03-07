@@ -22,6 +22,7 @@ python cli.py \
   --run "agop2" \
   --training_fraction 0.1 \
   --prime 31 \
+  --num_tokens 100 \
   --batch_size 32 \
   --dim_model 128 \
   --device cuda \
@@ -39,4 +40,4 @@ python cli.py \
   --num_steps 10000000 \
   --out_dir "/scratch/bbjr/mallina1/grokking_output" \
   --act_fn "relu" \
-  --init_scale 1.0 
+  --init_scale 1.0

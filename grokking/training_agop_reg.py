@@ -55,7 +55,7 @@ def main(args: dict):
     wandb.define_metric("validation/accuracy", step_metric='epoch')
     wandb.define_metric("validation/loss", step_metric='epoch')
 
-    train_loader, agop_loader, val_loader, context_len, train_dataset, val_dataset, base_train_feats, base_train_labels, base_val_feats, base_val_labels = \
+    train_loader, agop_loader, val_loader, val_loader1, context_len, train_dataset, val_dataset, base_train_feats, base_train_labels, base_val_feats, base_val_labels = \
         get_data_with_agop_loader(
             config.operation,
             config.prime,

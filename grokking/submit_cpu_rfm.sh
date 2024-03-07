@@ -17,27 +17,22 @@
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 python cli.py \
-  --run "agop2" \
-  --wandb_offline \
-  --operation "x/y" \
   --training_fraction 0.5 \
-  --prime 3 \
-  --num_tokens 31 \
+  --prime 31 \
+  --num_tokens 100 \
   --batch_size 32 \
   --device cpu \
-  --model "OneLayerFCN" \
+  --model "rfm" \
   --eval_entk -1 \
   --num_layers 1 \
   --weight_decay 1.0 \
-  --agop_weight 0.0 \
+  --agop_weight 1.0 \
   --wandb_offline \
-  --wandb_proj_name "feb13-grokking" \
+  --wandb_proj_name "feb2-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \
-  --init_scale 1.0 \
   --momentum 0.0 \
   --num_steps 100000 \
   --out_dir "./" \
-  --kernel_bandwidth 1 \
-  --skip_agop_comps
+  --kernel_bandwidth 1
