@@ -30,9 +30,9 @@ python cli.py \
   --fcn_hidden_width 256 \
   --eval_entk -1 \
   --num_layers 1 \
-  --weight_decay 0.0 \
+  --weight_decay 1.0 \
   --agop_weight 0.0 \
-  --wandb_proj_name "feb8-grokking" \
+  --wandb_proj_name "mar7-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \

@@ -161,10 +161,10 @@ def main(args: dict):
 
         with torch.no_grad():
             val_acc, val_loss = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='total_')
-            train_acc, train_loss = evaluate(model, train_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer='train_')
-            val_acc1, val_loss1 = evaluate(model, val_loader1, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer='(n<p)_')
+            train_acc, train_loss = evaluate(model, train_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='train_')
+            val_acc1, val_loss1 = evaluate(model, val_loader1, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='(n<p)_')
 
-            print(f'Epoch {epoch}:\t Train Acc: {train_acc}\t Total Val Acc: {val_acc}\t Val Acc (n <= p): {val_acc1}')
+            #print(f'Epoch {epoch}:\t Train Acc: {train_acc}\t Total Val Acc: {val_acc}\t Val Acc (n <= p): {val_acc1}')
 
             if not args.skip_agop_comps:
                 if epoch % log_freq == 0:
