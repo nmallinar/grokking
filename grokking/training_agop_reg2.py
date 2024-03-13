@@ -157,7 +157,7 @@ def main(args: dict):
         np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
 
     for epoch in tqdm(range(num_epochs)):
-        train(model, train_loader, agop_loader, optimizer, scheduler, device,
+        final_agops, final_left_agops = train(model, train_loader, agop_loader, optimizer, scheduler, device,
               config.num_steps, num_tokens, args.loss, config,
               embedding_layer=embedding_layer,
               agop_weight=config.agop_weight)
@@ -173,7 +173,13 @@ def main(args: dict):
                 if epoch % log_freq == 0:
                     visual_weights(model, epoch)
 
-                final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=embedding_layer)
+                if final_agops is None:
+                    final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=embedding_layer)
+                else:
+                    for idx in range(len(final_agops)):
+                        final_agops[idx] = final_agops[idx].detach()
+                        final_left_agops[idx] = final_left_agops[idx].detach()
+
                 final_sqrt_agops = []
                 final_sqrt_left_agops = []
                 for idx in range(len(final_agops)):
@@ -547,6 +553,11 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             "step": wandb.run.step
         }
         wandb.log(metrics)
+
+        if not config.skip_agop_comps:
+            return final_agops, final_left_agops
+        else:
+            return None, None
 
         # Finish training at maximum gradient updates
         if wandb.run.step == num_steps:
