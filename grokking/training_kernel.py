@@ -9,6 +9,7 @@ from inf_ntk import ep3_ntk_relu, jax_ntk_fn
 from eigenpro2.models import KernelModel
 
 DATA_DIR = '/scratch/bbjr/mallina1/grokking_output/feb2-grokking/tmwu613g/epoch_460'
+DATA_DIR = '/scratch/bbjr/mallina1/grokking_output/feb2-grokking/z64py22u/epoch_7100' # 4 layer
 n_classes = 31
 n_centers = 10000
 n_train = 20000

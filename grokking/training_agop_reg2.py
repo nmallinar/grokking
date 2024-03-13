@@ -74,6 +74,11 @@ def main(args: dict):
     print(base_train_feats.shape)
     print(base_val_feats.shape)
 
+    np.save(os.path.join(out_dir, f'base_train_data.npy'), base_train_feats)
+    np.save(os.path.join(out_dir, f'base_train_labels.npy'), base_train_labels.numpy())
+    np.save(os.path.join(out_dir, f'base_val_data.npy'), base_val_feats)
+    np.save(os.path.join(out_dir, f'base_val_labels.npy'), base_val_labels.numpy())
+
     embedding_layer = None
     if config.model == 'TwoLayerFCN':
         # embedding_layer = nn.Embedding(num_tokens, config.dim_model)
@@ -230,15 +235,31 @@ def main(args: dict):
 
 
             if val_acc == 1.0:
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000)
-                # base_train_feats, base_val_feats, base_train_labels, base_val_labels
+                syn_data_dir = os.path.join(ep_out_dir, 'synthetic_data')
+                os.makedirs(syn_data_dir, exist_ok=True)
 
-                np.save(os.path.join(ep_out_dir, f'synthetic_data.npy'), data.numpy())
-                np.save(os.path.join(ep_out_dir, f'synthetic_labels.npy'), labels.numpy())
-                np.save(os.path.join(ep_out_dir, f'base_train_data.npy'), base_train_feats)
-                np.save(os.path.join(ep_out_dir, f'base_train_labels.npy'), base_train_labels.numpy())
-                np.save(os.path.join(ep_out_dir, f'base_val_feats.npy'), base_val_feats)
-                np.save(os.path.join(ep_out_dir, f'base_val_labels.npy'), base_val_labels.numpy())
+                # flat covariance
+                cov = torch.tensor([1.0 for eig_i in range(num_tokens*2)])
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+
+                np.save(os.path.join(syn_data_dir, f'flat_synthetic_data.npy'), data.numpy())
+                np.save(os.path.join(syn_data_dir, f'flat_synthetic_labels.npy'), labels.numpy())
+
+                # spiked covariance
+                cov[-2:] = 1e-8
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+                np.save(os.path.join(syn_data_dir, f'minus2_synthetic_data.npy'), data.numpy())
+                np.save(os.path.join(syn_data_dir, f'minus2_synthetic_labels.npy'), labels.numpy())
+
+                cov[-4:] = 1e-8
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+                np.save(os.path.join(syn_data_dir, f'minus4_synthetic_data.npy'), data.numpy())
+                np.save(os.path.join(syn_data_dir, f'minus4_synthetic_labels.npy'), labels.numpy())
+
+                cov[-6:] = 1e-8
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+                np.save(os.path.join(syn_data_dir, f'minus6_synthetic_data.npy'), data.numpy())
+                np.save(os.path.join(syn_data_dir, f'minus6_synthetic_labels.npy'), labels.numpy())
 
 def log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False):
     for idx, agop in enumerate(final_agops):
@@ -503,7 +524,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
                 left_agop_tr += torch.trace(final_left_agops[idx])
 
             if agop_weight > 0:
-                loss += agop_weight * left_agop_tr
+                loss += agop_weight * agop_tr
         else:
             agop_tr = 0
             left_agop_tr = 0
@@ -579,15 +600,24 @@ def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, emb
 
     return acc, loss
 
-def get_synthetic_data(model, config, num_tokens, embedding_layer=None, n_points=10000):
+def get_synthetic_data(model, config, num_tokens, embedding_layer=None, n_points=10000, cov=None):
     with torch.no_grad():
-        input1 = torch.rand(n_points, num_tokens)
-        input2 = torch.rand(n_points, num_tokens)
-        input1 /= torch.sum(input1, -1, keepdims=True)
-        input2 /= torch.sum(input2, -1, keepdims=True)
+        # input1 = torch.distributions.MultivariateNormal(torch.zeros(num_tokens), torch.eye(2)).sample([n_points])
+        # input2 = torch.distributions.MultivariateNormal(torch.zeros(num_tokens), torch.eye(2)).sample([n_points])
+        # input1 = torch.rand(n_points, num_tokens)
+        # input2 = torch.rand(n_points, num_tokens)
+        # input1 /= torch.sum(input1, -1, keepdims=True)
+        # input2 /= torch.sum(input2, -1, keepdims=True)
+        # inputs = torch.cat((input1, input2), dim=-1)
+
+        if cov is None:
+            cov = torch.eye(num_tokens*2)
+
+        inputs = torch.distributions.MultivariateNormal(torch.zeros(num_tokens*2), cov).sample([n_points])
+        inputs[:num_tokens] /= torch.sum(inputs[:num_tokens], -1, keepdims=True)
+        inputs[num_tokens:] /= torch.sum(inputs[num_tokens:], -1, keepdims=True)
 
         outputs = []
-        inputs = torch.cat((input1, input2), dim=-1)
         for idx in range(0, n_points, config.batch_size):
             batch_input = inputs[idx:idx+config.batch_size,:].to(config.device)
 
