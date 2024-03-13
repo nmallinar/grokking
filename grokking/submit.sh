@@ -20,9 +20,9 @@
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
 python cli.py \
   --run "agop2" \
-  --training_fraction 0.1 \
+  --training_fraction 0.5 \
   --prime 31 \
-  --num_tokens 100 \
+  --num_tokens 31 \
   --batch_size 32 \
   --dim_model 128 \
   --device cuda \
@@ -32,12 +32,12 @@ python cli.py \
   --num_layers 1 \
   --weight_decay 1.0 \
   --agop_weight 0.0 \
-  --wandb_proj_name "mar7-grokking" \
+  --wandb_proj_name "mar13-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 1e-3 \
   --optimizer "adamw" \
   --momentum 0.0 \
-  --num_steps 10000000 \
+  --num_steps 10000 \
   --out_dir "/scratch/bbjr/mallina1/grokking_output" \
   --act_fn "relu" \
   --init_scale 1.0

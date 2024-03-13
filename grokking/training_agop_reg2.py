@@ -75,9 +75,9 @@ def main(args: dict):
     print(base_val_feats.shape)
 
     np.save(os.path.join(out_dir, f'base_train_data.npy'), base_train_feats)
-    np.save(os.path.join(out_dir, f'base_train_labels.npy'), base_train_labels.numpy())
+    np.save(os.path.join(out_dir, f'base_train_labels.npy'), base_train_labels)
     np.save(os.path.join(out_dir, f'base_val_data.npy'), base_val_feats)
-    np.save(os.path.join(out_dir, f'base_val_labels.npy'), base_val_labels.numpy())
+    np.save(os.path.join(out_dir, f'base_val_labels.npy'), base_val_labels)
 
     embedding_layer = None
     if config.model == 'TwoLayerFCN':
@@ -240,24 +240,24 @@ def main(args: dict):
 
                 # flat covariance
                 cov = torch.tensor([1.0 for eig_i in range(num_tokens*2)])
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
 
                 np.save(os.path.join(syn_data_dir, f'flat_synthetic_data.npy'), data.numpy())
                 np.save(os.path.join(syn_data_dir, f'flat_synthetic_labels.npy'), labels.numpy())
 
                 # spiked covariance
                 cov[-2:] = 1e-8
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
                 np.save(os.path.join(syn_data_dir, f'minus2_synthetic_data.npy'), data.numpy())
                 np.save(os.path.join(syn_data_dir, f'minus2_synthetic_labels.npy'), labels.numpy())
 
                 cov[-4:] = 1e-8
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
                 np.save(os.path.join(syn_data_dir, f'minus4_synthetic_data.npy'), data.numpy())
                 np.save(os.path.join(syn_data_dir, f'minus4_synthetic_labels.npy'), labels.numpy())
 
                 cov[-6:] = 1e-8
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=cov)
+                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
                 np.save(os.path.join(syn_data_dir, f'minus6_synthetic_data.npy'), data.numpy())
                 np.save(os.path.join(syn_data_dir, f'minus6_synthetic_labels.npy'), labels.numpy())
 
