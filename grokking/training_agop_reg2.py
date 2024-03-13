@@ -151,8 +151,6 @@ def main(args: dict):
     num_epochs = config.num_steps
     # num_epochs = ceil(config.num_steps / len(train_loader))
 
-    viz_indices = [0, 1, 5, 100, 500, 1000, 2000, 5000, 10000, 15000, 20000, 24000]
-    val_save_freq = 500
     log_freq = 100
 
     if embedding_layer is not None:
@@ -234,7 +232,7 @@ def main(args: dict):
                         np.save(os.path.join(ep_out_dir, f'sqrt_left_agop_{idx}.npy'), final_sqrt_left_agops[idx])
 
 
-            if val_acc == 1.0:
+            if epoch % log_freq == 0:
                 syn_data_dir = os.path.join(ep_out_dir, 'synthetic_data')
                 os.makedirs(syn_data_dir, exist_ok=True)
 
@@ -260,6 +258,10 @@ def main(args: dict):
                 data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
                 np.save(os.path.join(syn_data_dir, f'minus6_synthetic_data.npy'), data.numpy())
                 np.save(os.path.join(syn_data_dir, f'minus6_synthetic_labels.npy'), labels.numpy())
+
+                if val_acc == 1.0:
+                    # can save less frequently once we generalize
+                    log_freq = 1000
 
 def log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False):
     for idx, agop in enumerate(final_agops):
