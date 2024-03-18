@@ -562,7 +562,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         wandb.log(metrics)
 
         # Finish training at maximum gradient updates
-        if wandb.run.step == num_steps:
+        if wandb.run.step * len(train_loader) == num_steps:
             return
 
     if not config.skip_agop_comps:
