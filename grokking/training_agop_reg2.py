@@ -164,8 +164,10 @@ def main(args: dict):
 
         with torch.no_grad():
             val_acc, val_loss = evaluate(model, val_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='total_')
-            train_acc, train_loss = evaluate(model, train_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='train_')
-            val_acc1, val_loss1 = evaluate(model, val_loader1, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='(n<p)_')
+            train_acc, train_loss = evaluate(model, train_loader, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='train_', compute_margins=True)
+
+            if num_tokens > args.prime:
+                val_acc1, val_loss1 = evaluate(model, val_loader1, device, epoch, num_tokens, args.loss, config, embedding_layer=embedding_layer, log_key='(n<p)_')
 
             #print(f'Epoch {epoch}:\t Train Acc: {train_acc}\t Total Val Acc: {val_acc}\t Val Acc (n <= p): {val_acc1}')
 
@@ -568,7 +570,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
     else:
         return None, None
 
-def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, embedding_layer=None, log_key=''):
+def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, embedding_layer=None, log_key='', compute_margins=False):
     # Set model to evaluation mode
     model.eval()
 
@@ -580,6 +582,7 @@ def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, emb
     correct = 0
     loss = 0.
 
+    min_margin = 10000
     # Loop over each batch from the validation set
     for batch in val_loader:
 
@@ -601,12 +604,22 @@ def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, emb
             output = model(inputs, act=config.act_fn)
             correct += (torch.argmax(output, dim=1) == labels).sum()
 
+            if compute_margins:
+                for idx in range(len(labels)):
+                    margin = outputs[idx][labels[idx]]
+                    if margin < min_margin:
+                        min_margin = margin
+                    # max_other_class = [output[idx][x] for x in range(len(labels)) if x != labels[idx]]
+                    # margin = output[idx][labels[idx]] - max(max_other_class)
+
+
             n_classes = config.prime
             if loss_arg == 'mse':
                 labels = F.one_hot(labels, n_classes).double()
 
             loss += criterion(output, labels) * len(labels)
 
+    margin /= torch.sqrt(torch.pow(model.fc1.weight.data, 2) + torch.pow(model.out.weight.data, 2))
     acc = correct / len(val_loader.dataset)
     loss = loss / len(val_loader.dataset)
 
@@ -615,6 +628,9 @@ def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, emb
         f"validation/{log_key}loss": loss,
         "epoch": epoch
     }
+    if compute_margins:
+        metrics[f'validation/{log_key}margin'] = margin
+
     wandb.log(metrics, commit=False)
 
     return acc, loss
