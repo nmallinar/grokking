@@ -538,6 +538,9 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             agop_tr = 0
             left_agop_tr = 0
 
+        weight_norm_fc1 = torch.linalg.norm(model.fc1.weight.data).detach()
+        weight_norm_out = torch.linalg.norm(model.out.weight.data).detach()
+
         loss.backward()
 
         # Update weights
@@ -550,18 +553,20 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             "training/mse_loss": mse_loss,
             "training/agop_tr": agop_tr,
             "training/left_agop_tr": left_agop_tr,
+            "training/weight_norm_fc1": weight_norm_fc1,
+            "training/weight_norm_out": weight_norm_out,
             "step": wandb.run.step
         }
         wandb.log(metrics)
 
-        if not config.skip_agop_comps:
-            return final_agops, final_left_agops
-        else:
-            return None, None
-
         # Finish training at maximum gradient updates
         if wandb.run.step == num_steps:
             return
+
+    if not config.skip_agop_comps:
+        return final_agops, final_left_agops
+    else:
+        return None, None
 
 def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, embedding_layer=None, log_key=''):
     # Set model to evaluation mode
