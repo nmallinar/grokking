@@ -619,7 +619,7 @@ def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, emb
 
             loss += criterion(output, labels) * len(labels)
 
-    margin /= torch.sqrt(torch.pow(model.fc1.weight.data, 2) + torch.pow(model.out.weight.data, 2))
+    min_margin /= torch.sqrt(torch.pow(model.fc1.weight.data, 2) + torch.pow(model.out.weight.data, 2))
     acc = correct / len(val_loader.dataset)
     loss = loss / len(val_loader.dataset)
 
