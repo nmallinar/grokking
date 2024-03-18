@@ -35,7 +35,7 @@ def main(args: dict):
                dir=args.out_dir)
     # TODO: add wandb name
     # wandb.run.name = f'{wandb.run.id} - {args.model} act_fn={args.act_fn}, agop_weight={args.agop_weight}, agop_subsample_n={args.agop_subsample_n}, wd={args.weight_decay}, bs={args.batch_size}'
-    wandb.run.name = f'{wandb.run.id} - {args.model} n_toks={args.num_tokens}, p={args.prime}, act_fn={args.act_fn}, agop_weight={args.agop_weight}, wd={args.weight_decay}, init_scale={args.init_scale}, width={args.fcn_hidden_width}, lr={args.learning_rate}'
+    wandb.run.name = f'{wandb.run.id} - {args.model} n_toks={args.num_tokens}, p={args.prime}, act_fn={args.act_fn}, agop_weight={args.agop_weight}, wd={args.weight_decay}, init_scale={args.init_scale}, width={args.fcn_hidden_width}, lr={args.learning_rate}, frac={args.training_fraction}'
 
     wandb.run.save()
 
