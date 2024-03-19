@@ -622,7 +622,7 @@ def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, emb
 
             if compute_margins:
                 for idx in range(len(labels)):
-                    margin = outputs[idx][labels[idx]]
+                    margin = output[idx][labels[idx]]
                     if margin < min_margin:
                         min_margin = margin
                     # max_other_class = [output[idx][x] for x in range(len(labels)) if x != labels[idx]]
@@ -635,7 +635,7 @@ def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, emb
 
             loss += criterion(output, labels) * len(labels)
 
-    min_margin /= torch.sqrt(torch.pow(model.fc1.weight.data, 2) + torch.pow(model.out.weight.data, 2))
+    min_margin /= torch.sqrt(torch.pow(torch.linalg.norm(model.fc1.weight.data), 2) + torch.pow(torch.linalg.norm(model.out.weight.data), 2))
     acc = correct / len(val_loader.dataset)
     loss = loss / len(val_loader.dataset)
 
