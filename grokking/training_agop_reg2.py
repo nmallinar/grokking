@@ -408,7 +408,23 @@ def calc_full_agops(model, loader, config, num_tokens, embedding_layer=None):
         nsamps = inputs.size(0)
         total_n += nsamps
 
+        startt = time.time()
+        left_agop_test = 0.0
+        hid1 = inputs @ model.fc1.weight
+        hid1 = hid1 > 0
+        agop = 0.0
+        for idx in range(hid1.shape[0]):
+            dhid1 = torch.diag(hid1[idx])
+            left_agop_test += model.fc1.weight @ dhid1 @ model.out.weight @ model.out.weight.T @ dhid1 @ model.fc1.weight.T
+        comptime = time.time() - startt
+
+        startt = time.time()
         agops, left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
+        comptime2 = time.time() - startt
+
+        print(torch.linalg.norm((left_agop[0] * nsamps) - left_agop_test))
+        print(f'custom: {comptime}, jac: {comptime2}')
+
         for jdx in range(len(agops)):
             if idx == 0:
                 final_agops.append(agops[jdx]*nsamps)
