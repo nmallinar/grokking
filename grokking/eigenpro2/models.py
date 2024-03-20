@@ -115,14 +115,14 @@ class KernelModel(nn.Module):
         self.forward(samples)
 
     def get_grad_reg(self, samples):
-        '''
+        
         x1 = self.centers.unsqueeze(0)
         x2 = self.centers.unsqueeze(1)
         all_diffs = x1 - x2
-        '''
-        x1 = samples.unsqueeze(0)
-        x2 = samples.unsqueeze(1)
-        all_diffs = x1 - x2
+        
+        #x1 = samples.unsqueeze(0)
+        #x2 = samples.unsqueeze(1)
+        #all_diffs = x1 - x2
 
         def outer_prod(x):
             return x @ x.T
@@ -132,7 +132,7 @@ class KernelModel(nn.Module):
             prod = torch.vmap(outer_prod)(all_diffs[idx:idx+8])
             G += torch.sum(prod, dim=0)
 
-        return G * 1./self.bandwidth
+        return G * 1./(self.bandwidth)
 
     def primal_gradient(self, samples, labels, weight):
         pred = self.forward(samples, weight)
@@ -155,13 +155,15 @@ class KernelModel(nn.Module):
                          eta, sample_ids, batch_ids):
         # update random coordiate block (for mini-batch)
         grad, reg = self.primal_gradient(x_batch, y_batch.type(x_batch.type()), self.weight)
-        reg_batch = 2 * 10 * reg @ (self.weight[batch_ids])
-        import ipdb; ipdb.set_trace()
-        self.weight.index_add_(0, batch_ids, -eta * (grad + reg_batch))
+        #reg_batch = reg @ (self.weight[batch_ids])
+        reg = reg @ self.weight
+        reg = reg[batch_ids]
+        lbda = 1. / len(batch_ids)
+        self.weight.index_add_(0, batch_ids, -eta * (grad + lbda * reg))
 
         # update fixed coordinate block (for EigenPro)
         kmat = self.kernel_fn(x_batch, samples)
-        correction = eigenpro_fn(grad, kmat)
+        correction = eigenpro_fn(grad + lbda * reg, kmat)
         self.weight.index_add_(0, sample_ids, eta * correction)
         return
 
