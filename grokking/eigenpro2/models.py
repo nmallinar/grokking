@@ -114,17 +114,22 @@ class KernelModel(nn.Module):
     def predict(self, samples):
         self.forward(samples)
 
-    def get_grad_reg(self):
+    def get_grad_reg(self, samples):
+        '''
         x1 = self.centers.unsqueeze(0)
         x2 = self.centers.unsqueeze(1)
+        all_diffs = x1 - x2
+        '''
+        x1 = samples.unsqueeze(0)
+        x2 = samples.unsqueeze(1)
         all_diffs = x1 - x2
 
         def outer_prod(x):
             return x @ x.T
 
         G = 0.
-        for idx in range(0, self.centers.size(0), 128):
-            prod = torch.vmap(outer_prod)(all_diffs[idx:idx+128])
+        for idx in range(0, samples.size(0), 8):
+            prod = torch.vmap(outer_prod)(all_diffs[idx:idx+8])
             G += torch.sum(prod, dim=0)
 
         return G * 1./self.bandwidth
@@ -132,6 +137,8 @@ class KernelModel(nn.Module):
     def primal_gradient(self, samples, labels, weight):
         pred = self.forward(samples, weight)
         grad = pred - labels.type(pred.type())
+        reg = self.get_grad_reg(samples)
+        import ipdb; ipdb.set_trace()
         return grad + 2 * 10 * self.get_grad_reg() * weight
 
     @staticmethod

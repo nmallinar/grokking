@@ -172,11 +172,11 @@ def rfm(X_train, y_train_onehot, X_test, y_test_onehot, num_classes, wandb,
         y_test_alt2 = y_test_alt2_onehot.argmax(-1)
 
     M = np.eye(d, dtype='float64')
-    M = torch.from_numpy(M)
+    M = torch.from_numpy(M).to('cuda')
     for i in range(iters):
         epro_kernel_fn = lambda x, y: kernel_fn(x, y, L, M)
 
-        epro = KernelModel(epro_kernel_fn, X_train, y_train_onehot.shape[-1], L, device='cpu')
+        epro = KernelModel(epro_kernel_fn, X_train, y_train_onehot.shape[-1], L, device='cuda')
         epro.fit(X_train, y_train_onehot, x_val=X_test, y_val=y_test_onehot, epochs=10,
                  mem_gb=12, print_every=1)
         # K_train = kernel_fn(X_train, X_train, L, torch.from_numpy(M)).numpy()
@@ -255,8 +255,8 @@ def rfm(X_train, y_train_onehot, X_test, y_test_onehot, num_classes, wandb,
         #
         # if wandb is not None:
         #     wandb.log(metrics)
-        M  = get_grads(X_train, epro.weight.T.numpy(), L, M, batch_size=batch_size)
-        M = torch.from_numpy(M)
+        M  = get_grads(X_train, epro.weight.T.cpu().numpy(), L, M.cpu(), batch_size=batch_size)
+        M = torch.from_numpy(M).to('cuda')
 
     K_train = kernel_fn(X_train, X_train, L, torch.from_numpy(M)).numpy()
     if use_jac_reg:
