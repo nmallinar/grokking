@@ -138,8 +138,7 @@ class KernelModel(nn.Module):
         pred = self.forward(samples, weight)
         grad = pred - labels.type(pred.type())
         reg = self.get_grad_reg(samples)
-        import ipdb; ipdb.set_trace()
-        return grad + 2 * 10 * self.get_grad_reg() * weight
+        return grad, reg
 
     @staticmethod
     def _compute_opt_params(bs, bs_gpu, beta, top_eigval):
@@ -155,8 +154,10 @@ class KernelModel(nn.Module):
     def eigenpro_iterate(self, samples, x_batch, y_batch, eigenpro_fn,
                          eta, sample_ids, batch_ids):
         # update random coordiate block (for mini-batch)
-        grad = self.primal_gradient(x_batch, y_batch.type(x_batch.type()), self.weight)
-        self.weight.index_add_(0, batch_ids, -eta * grad)
+        grad, reg = self.primal_gradient(x_batch, y_batch.type(x_batch.type()), self.weight)
+        reg_batch = 2 * 10 * reg @ (self.weight[batch_ids])
+        import ipdb; ipdb.set_trace()
+        self.weight.index_add_(0, batch_ids, -eta * (grad + reg_batch))
 
         # update fixed coordinate block (for EigenPro)
         kmat = self.kernel_fn(x_batch, samples)
