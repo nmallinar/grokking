@@ -102,6 +102,11 @@ def get_grads(X, sol, L, P, batch_size=2):
 
     return M
 
+def _grad_subcomp(X, i):
+    diff = X - X[i]
+    G = diff @ diff.T
+    return G
+
 def get_grad_reg(X, L, P):
     M = 0.
     num_samples = X.size(0)
@@ -122,11 +127,6 @@ def get_grad_reg(X, L, P):
 
     # n x n x d
     all_diffs = torch.zeros(X.size(0), X.size(0), X.size(1))
-
-    def _grad_subcomp(X, i):
-        diff = X - X[i]
-        G = diff @ diff.T
-        return G
 
     pool = Pool(processes=32)
     results = [pool.apply(_grad_subcomp, args=(X, i)) for i in range(X.size(0))]
