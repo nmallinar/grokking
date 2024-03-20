@@ -158,7 +158,7 @@ class KernelModel(nn.Module):
         #reg_batch = reg @ (self.weight[batch_ids])
         reg = reg @ self.weight
         reg = reg[batch_ids]
-        lbda = 1. / len(batch_ids)
+        lbda = 1e-1 / len(batch_ids)
         self.weight.index_add_(0, batch_ids, -eta * (grad + lbda * reg))
 
         # update fixed coordinate block (for EigenPro)
