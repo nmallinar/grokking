@@ -14,6 +14,7 @@ from inf_ntk import ntk_fn, jax_ntk_fn, ep3_ntk_relu
 from sklearn.metrics import top_k_accuracy_score
 from data import get_augmented_data_with_agop_loader
 import wandb
+from multiprocessing import Pool
 
 def ntk_M(pair1, pair2, depth, M):
     _, ntk = ntk_fn(pair1, pair2, M=M, depth=int(depth), bias=0, jax_rescale=True)
@@ -121,13 +122,22 @@ def get_grad_reg(X, L, P):
 
     # n x n x d
     all_diffs = torch.zeros(X.size(0), X.size(0), X.size(1))
-    for i in range(X.size(0)):
-        all_diffs[i] = X - X[i]
 
-    G = 0.
-    for i in range(X.size(0)):
-        G += all_diffs[i] @ all_diffs[i].T
-    # G /= X.size(0)
+    def _grad_subcomp(X, i):
+        diff = X - X[i]
+        G = diff @ diff.T
+        return G
+
+    pool = Pool(processes=32)
+    results = [pool.apply(_grad_subcomp, args=(X, i)) for i in range(X.size(0))]
+    G = np.sum(results)
+
+    # for i in range(X.size(0)):
+    #     all_diffs[i] = X - X[i]
+    #
+    # G = 0.
+    # for i in range(X.size(0)):
+    #     G += all_diffs[i] @ all_diffs[i].T
 
     return G * 1./L
 
