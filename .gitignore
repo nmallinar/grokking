@@ -1,5 +1,7 @@
 wandb/
 venv/
+grokking/data/
+grokking_outputs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
