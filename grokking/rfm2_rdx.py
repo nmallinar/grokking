@@ -252,12 +252,15 @@ def rfm(X_train, y_train_onehot, X_test, y_test_onehot, num_classes, wandb,
 
         if use_jac_reg:
             G_reg = get_grad_reg(X_train, L, torch.from_numpy(M))
-            S, U = torch.linalg.eigh((K_train.T @ K_train) + reg * torch.eye(len(K_train)) + agop_weight * G_reg)
-            R, V = torch.linalg.eigh(1e-2*Mc)
-            sol = U @((U.T @ y_train_onehot @ V)/(R + S.unsqueeze(1))) @ V.T
+            #S, U = torch.linalg.eigh((K_train.T @ K_train) + reg * torch.eye(len(K_train)))
+            
+            #S, U = torch.linalg.eigh((K_train.T @ K_train) + reg * torch.eye(len(K_train)) + agop_weight * G_reg)
+            #R, V = torch.linalg.eigh(1e-2*Mc)
+            #sol = U @((U.T @ y_train_onehot @ V)/(R + S.unsqueeze(1))) @ V.T
+            
             # import ipdb; ipdb.set_trace()
-            # sol = np.linalg.inv(K_train.T @ K_train + reg * np.eye(len(K_train)) + agop_weight*G_reg) @ K_train @ y_train_onehot.numpy()
-            sol = sol.T.numpy()
+            sol = np.linalg.inv((K_train.T @ K_train + reg * np.eye(len(K_train)) + agop_weight*G_reg).numpy()) @ K_train.numpy() @ y_train_onehot.numpy()
+            sol = sol.T
         else:
             sol = solve(K_train + reg * np.eye(len(K_train)), y_train_onehot).T
         K_train = K_train.numpy()

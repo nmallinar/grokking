@@ -13,7 +13,7 @@
 #SBATCH --nodes 1
 #SBATCH --tasks 1
 #SBATCH --tasks-per-node 1
-#SBATCH -t 04:00:00       # set maximum run time in H:M:S
+#SBATCH -t 10:00:00       # set maximum run time in H:M:S
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 #source /projects/bbjr/mallina1/envs/torch2/bin/activate
@@ -31,13 +31,14 @@ python cli.py \
   --eval_entk -1 \
   --num_layers 1 \
   --weight_decay 0.0 \
-  --agop_weight 1.0 \
-  --wandb_proj_name "mar13-grokking" \
+  --agop_weight 10.0 \
+  --wandb_proj_name "mar18-grokking" \
   --agop_subsample_n 32 \
-  --learning_rate 1e-3 \
+  --learning_rate 0.001 \
   --optimizer "adamw" \
   --momentum 0.0 \
   --num_steps 10000 \
   --out_dir "/scratch/bbjr/mallina1/grokking_output" \
   --act_fn "relu" \
-  --init_scale 1.0
+  --init_scale 0.0001 \
+  --wandb_offline
