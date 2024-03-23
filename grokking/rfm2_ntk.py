@@ -15,11 +15,8 @@ from sklearn.metrics import top_k_accuracy_score
 from data import get_augmented_data_with_agop_loader
 import wandb
 from multiprocessing import Pool
-
-torch.manual_seed(34)
-import random
-random.seed(23)
-np.random.seed(234)
+from ntk_rfm_grads import get_grads as get_ntk_grads
+from ntk_rfm_grads import get_jacs as get_ntk_jacs
 
 def ntk_M(pair1, pair2, depth, M):
     _, ntk = ntk_fn(pair1, pair2, M=M, depth=int(depth), bias=0, jax_rescale=True)
@@ -39,10 +36,10 @@ def kernel_fn(pair1, pair2, bandwidth, M):
     # overloading bandwidth param to be depth in NTK
     # return ntk_M(pair1, pair2, bandwidth, M)
     # return jax_ntk_M(pair1, pair2, bandwidth, M)
-    return laplace_kernel_M(pair1, pair2, bandwidth, M)
+    # return laplace_kernel_M(pair1, pair2, bandwidth, M)
     #return gaussian_kernel_M(pair1, pair2, bandwidth, M)
-    # sqrtM = np.real(scipy.linalg.sqrtm(M))
-    # return ep3_ntk_relu(pair1 @  sqrtM, pair2 @ sqrtM, depth=bandwidth)
+    sqrtM = np.real(scipy.linalg.sqrtm(M))
+    return ep3_ntk_relu(pair1, pair2, depth=int(bandwidth), M=sqrtM)
 
 def get_grads(X, sol, L, P, batch_size=2):
     M = 0.
@@ -107,70 +104,35 @@ def get_grads(X, sol, L, P, batch_size=2):
 
     return M
 
-def batch_matrix_product_sum(input_tensor):
-    # Define a function to compute matrix product and sum for a single batch
-    def compute_product_sum(batch):
-        return torch.matmul(batch, batch.transpose(1, 0)).sum(dim=0)
 
-    product_sum = torch.vmap(compute_product_sum)(input_tensor)
-
-    return product_sum
-
-def get_grad_reg(X, L, P):
-    # num_samples = X.size(0)
-    # indices = np.random.randint(len(X), size=num_samples)
-    #
-    # if len(X) > len(indices):
-    #     x = X[indices, :]
-    # else:
-    #     x = X
-
-    # K = kernel_fn(X, x, L, P)
-    K = kernel_fn(X, X, L, P)
-    dist = classic_kernel.euclidean_distances_M(X, X, P, squared=False)
-    dist = torch.where(dist < 1e-10, torch.zeros(1).float(), dist)
-    K = K / dist
-    K[K == float("Inf")] = 0.
-
-    # dist = classic_kernel.euclidean_distances_M(X, x, P, squared=False)
-    # dist = torch.where(dist < 1e-10, torch.zeros(1).float(), dist)
-    #
-    # K = K/dist
-    # K[K == float("Inf")] = 0.
-
+def get_grad_reg(X, L, M):
     # n x n x d
-    # all_diffs = torch.zeros(X.size(0), X.size(0), X.size(1))
-
-    sqrtM = np.real(scipy.linalg.sqrtm(P))
-    X = X @ sqrtM
-    X1 = X.unsqueeze(0)
-    X2 = X.unsqueeze(1)
-    all_diffs = X1 - X2
+    # this is (10, 4704, d)
+    # jac = get_ntk_jacs(X, X[:10], int(L), sqrtM=torch.tensor(np.real(scipy.linalg.sqrtm(M))))
+    # import ipdb; ipdb.set_trace()
 
     def outer_prod(x):
         return x@x.T
 
     G = 0.
-    for idx in range(0, X.size(0), 32):
-        prod = torch.vmap(outer_prod)(all_diffs[idx:idx+32])
+    bsize = 32
+    for idx in range(0, X.shape[0], bsize):
+        jac = get_ntk_jacs(X, X[idx:idx+bsize], int(L), sqrtM=torch.tensor(np.real(scipy.linalg.sqrtm(M))))
+        prod = torch.vmap(outer_prod)(jac)
         G += torch.sum(prod, dim=0)
+    #
+    # G = torch.zeros(X.size(0), X.size(0))
+    # bsize = 256
+    # for idx in range(0, X.shape[0], bsize):
+    #     # jac: (n, n, d)
+    #     jac = get_ntk_jacs(X[idx:idx+bsize], X[idx:idx+bsize], int(L), sqrtM=torch.tensor(np.real(scipy.linalg.sqrtm(M))))
+    #
+    #     for jdx in range(0, jac.shape[0], 32):
+    #         prod = torch.vmap(outer_prod)(jac[jdx:jdx+32])
+    #         G[idx:idx+bsize, idx:idx+bsize] += torch.sum(prod, dim=0)
 
-    # product = np.einsum('nmd,nkd->mk', all_diffs.numpy(), all_diffs.numpy(), optimize=True)
-    # n, m, d = all_diffs.size()
 
-    # prod = torch.matmul(all_diffs.view(n*m, d), all_diffs.view(n*m, d).transpose(1, 0))
-
-    # prod = prod.view(n, m, m)
-    # prod = all_diffs @ all_diffs.transpose(1,2)
-
-    # for i in range(X.size(0)):
-    #     all_diffs[i] = X - X[i]
-    # G = 0.
-    # for i in range(X.size(0)):
-    #     G += all_diffs[i] @ all_diffs[i].T
-    # import ipdb; ipdb.set_trace()
-
-    return K @ G * 1./L
+    return G
 
 def eval(X_train, X_test, L, M, y_test, y_test_onehot, sol, i, log_key=''):
     K_test = kernel_fn(X_train, X_test, L, torch.from_numpy(M)).numpy()
@@ -203,7 +165,10 @@ def rfm(X_train, y_train_onehot, X_test, y_test_onehot, num_classes, wandb,
         K_train = kernel_fn(X_train, X_train, L, torch.from_numpy(M)).numpy()
 
         if use_jac_reg:
+            # jac = get_ntk_jacs(X_train[:200], X_train[:200], int(L), sqrtM=torch.tensor(np.real(scipy.linalg.sqrtm(M))))
+            # import ipdb; ipdb.set_trace()
             G_reg = get_grad_reg(X_train, L, torch.from_numpy(M)).numpy()
+            import ipdb; ipdb.set_trace()
             sol = np.linalg.inv(K_train.T @ K_train + reg * np.eye(len(K_train)) + agop_weight*G_reg) @ K_train @ y_train_onehot.numpy()
             sol = sol.T
         else:
@@ -277,7 +242,9 @@ def rfm(X_train, y_train_onehot, X_test, y_test_onehot, num_classes, wandb,
         if wandb is not None:
             wandb.log(metrics)
 
-        M  = get_grads(X_train, sol, L, torch.from_numpy(M), batch_size=batch_size)
+        # M  = get_grads(X_train, sol, L, torch.from_numpy(M), batch_size=batch_size)
+        M = get_ntk_grads(torch.from_numpy(sol.T), X_train, X_train[:2000], torch.from_numpy(M), ntk_depth=int(L))
+        M = M.numpy()
 
     K_train = kernel_fn(X_train, X_train, L, torch.from_numpy(M)).numpy()
     if use_jac_reg:

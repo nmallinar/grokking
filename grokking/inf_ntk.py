@@ -58,7 +58,7 @@ def ntk_fn(x, y, M=None, depth=1, bias=0, jax_rescale=False):
     scale_factor = 3*(2**(depth-1))
     return S_k_minus_1 / scale_factor, N_k_minus_1 / scale_factor
 
-def ep3_ntk_relu(X, Z, depth=1, bias=0.):
+def ep3_ntk_relu(X, Z, depth=1, bias=0., M=None):
     """
     Returns the evaluation of nngp and ntk kernels
     for fully connected neural networks
@@ -67,6 +67,10 @@ def ep3_ntk_relu(X, Z, depth=1, bias=0.):
     depth  (int): number of layers of the network
     bias (float): (default=0.)
     """
+    if M is not None:
+        X = X @ M
+        Z = Z @ M
+
     eps = 1e-12
     from torch import acos, pi
     kappa_0 = lambda u: (1-acos(u)/pi)

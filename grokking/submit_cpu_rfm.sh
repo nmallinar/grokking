@@ -19,7 +19,7 @@
 python cli.py \
   --training_fraction 0.5 \
   --prime 31 \
-  --num_tokens 100 \
+  --num_tokens 31 \
   --batch_size 32 \
   --device cpu \
   --model "rfm" \

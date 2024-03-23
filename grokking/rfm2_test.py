@@ -39,8 +39,8 @@ def kernel_fn(pair1, pair2, bandwidth, M):
     # overloading bandwidth param to be depth in NTK
     # return ntk_M(pair1, pair2, bandwidth, M)
     # return jax_ntk_M(pair1, pair2, bandwidth, M)
-    return laplace_kernel_M(pair1, pair2, bandwidth, M)
-    #return gaussian_kernel_M(pair1, pair2, bandwidth, M)
+    # return laplace_kernel_M(pair1, pair2, bandwidth, M)
+    return gaussian_kernel_M(pair1, pair2, bandwidth, M)
     # sqrtM = np.real(scipy.linalg.sqrtm(M))
     # return ep3_ntk_relu(pair1 @  sqrtM, pair2 @ sqrtM, depth=bandwidth)
 
@@ -88,7 +88,7 @@ def get_grads(X, sol, L, P, batch_size=2):
     x1 = (x @ P).reshape(m, 1, d)
     step3 = step3 @ x1
 
-    G = (step2 - step3) * -1/L
+    G = (step2 - step3) * -1/(L**2)
 
     M = 0.
 
@@ -142,10 +142,12 @@ def get_grad_reg(X, L, P):
     # all_diffs = torch.zeros(X.size(0), X.size(0), X.size(1))
 
     sqrtM = np.real(scipy.linalg.sqrtm(P))
-    X = X @ sqrtM
+    # X = X @ sqrtM
     X1 = X.unsqueeze(0)
     X2 = X.unsqueeze(1)
     all_diffs = X1 - X2
+
+    # all_diffs = K.unsqueeze(2) * all_diffs
 
     def outer_prod(x):
         return x@x.T
@@ -154,6 +156,7 @@ def get_grad_reg(X, L, P):
     for idx in range(0, X.size(0), 32):
         prod = torch.vmap(outer_prod)(all_diffs[idx:idx+32])
         G += torch.sum(prod, dim=0)
+
 
     # product = np.einsum('nmd,nkd->mk', all_diffs.numpy(), all_diffs.numpy(), optimize=True)
     # n, m, d = all_diffs.size()
@@ -169,8 +172,8 @@ def get_grad_reg(X, L, P):
     # for i in range(X.size(0)):
     #     G += all_diffs[i] @ all_diffs[i].T
     # import ipdb; ipdb.set_trace()
-
-    return K @ G * 1./L
+    # return torch.mul(K, G * 1./L)
+    return G * 1./L
 
 def eval(X_train, X_test, L, M, y_test, y_test_onehot, sol, i, log_key=''):
     K_test = kernel_fn(X_train, X_test, L, torch.from_numpy(M)).numpy()

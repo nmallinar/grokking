@@ -33,9 +33,9 @@ def gaussian_kernel_M(pair1, pair2, bandwidth, M):
 
 def kernel_fn(pair1, pair2, bandwidth, M):
     # overloading bandwidth param to be depth in NTK
-    # return ntk_M(pair1, pair2, bandwidth, M)
-    # return jax_ntk_M(pair1, pair2, bandwidth, M)
-    return laplace_kernel_M(pair1, pair2, bandwidth, M)
+    # return ntk_M(pair1, pair2, 1, M)
+    return jax_ntk_M(pair1, pair2, 5 , M)
+    # return laplace_kernel_M(pair1, pair2, bandwidth, M)
     #return gaussian_kernel_M(pair1, pair2, bandwidth, M)
 
 def get_grads(X, sol, L, P, batch_size=2):
@@ -135,7 +135,7 @@ def get_grad_reg(X, L, P):
 def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
         iters=3, name=None, batch_size=2, reg=1e-3,
         train_acc=False, L=1, agop_weight=1e-5):
-
+    num_classes = 31
     # X_train, y_train, true_y_train = get_data(train_loader, embedding_layer, num_classes)
     # X_test, y_test, true_y_test = get_data(test_loader, embedding_layer, num_classes)
 
@@ -143,14 +143,16 @@ def rfm(train_loader, test_loader, embedding_layer, num_classes, wandb,
     # true_y_train = torch.tensor(np.load('data/10k/base_train_labels.npy'))
     # y_train = F.one_hot(true_y_train, num_classes).double().double()
 
-    X_test = torch.tensor(np.load('data/100k/base_val_feats.npy')).double()
-    true_y_test = torch.tensor(np.load('data/100k/base_val_labels.npy'))
+    X_test = torch.tensor(np.load('data/100k_4layer/base_val_feats.npy')).double()
+    true_y_test = torch.tensor(np.load('data/100k_4layer/base_val_labels.npy'))
     y_test = F.one_hot(true_y_test, num_classes).double()
 
-    X_train = torch.tensor(np.load('data/100k/synthetic_data.npy')).double()
-    y_train = torch.tensor(np.load('data/100k/synthetic_labels.npy')).double()
+    X_train = torch.tensor(np.load('data/100k_4layer/synthetic_data.npy')).double()
+    y_train = torch.tensor(np.load('data/100k_4layer/synthetic_labels.npy')).double()
+    # import ipdb; ipdb.set_trace()
+    X_train = X_train[:10000]
+    y_train = y_train[:10000]
     true_y_train = torch.tensor(np.argmax(y_train, axis=-1))
-
     n, d = X_train.shape
 
     M = np.eye(d, dtype='float64')

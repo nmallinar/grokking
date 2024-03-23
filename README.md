@@ -26,6 +26,13 @@ An implementation of the OpenAI 'Grokking: Generalization Beyond Overfitting on 
     pip install -r requirements.txt
     ```
 
+### new installation commands
+
+```
+pip install -U jax[cuda12] torch numpy scipy wandb tqdm ipdb torchvision einops matplotlib
+pip install neural-tangents
+```
+
 ## Usage
 
 The project uses [Weights & Biases](https://wandb.ai/site) to keep track of experiments. Run `wandb login` to use the online dashboard, or `wandb offline` to store the data on your local machine.
