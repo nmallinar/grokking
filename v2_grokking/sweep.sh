@@ -22,6 +22,7 @@ RIDGES=(1.0 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 5e-5 1e-5)
 BANDWIDTHS=(10 5 1 5e-1 1e-1 5e-2 1e-2)
 JACS=(0.0 1.0 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 5e-5 1e-5)
 AGIPS=(0.0 1.0 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 5e-5 1e-5)
+AVGSIZE=(10 2 1)
 
 for ridge in "${RIDGES[@]}"
 do
@@ -31,17 +32,21 @@ do
     do
       for agip in "${AGIPS[@]}"
       do
-        python train_kernel.py \
-          --wandb_proj_name "mar24-grokking" \
-          --out_dir "/scratch/bbjr/mallina1/grokking_output" \
-          --operation "x+y" \
-          --prime 31 \
-          --training_fraction 0.5 \
-          --iters 1000 \
-          --ridge ${ridge} \
-          --bandwidth ${bw} \
-          --jac_reg_weight ${jac} \
-          --agip_rdx_weight ${agip}
+        for avg in "${AVGSIZE[@]}"
+        do
+          python train_kernel.py \
+            --wandb_proj_name "mar24-grokking" \
+            --out_dir "/scratch/bbjr/mallina1/grokking_output" \
+            --operation "x+y" \
+            --prime 31 \
+            --training_fraction 0.5 \
+            --iters 1000 \
+            --ridge ${ridge} \
+            --bandwidth ${bw} \
+            --jac_reg_weight ${jac} \
+            --agip_rdx_weight ${agip} \
+            --agop_avg_size ${avg}
+        done
       done
     done
   done

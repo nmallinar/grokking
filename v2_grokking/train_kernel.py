@@ -112,6 +112,7 @@ def main():
     parser.add_argument('--ntk_depth', default=2, type=int)
     parser.add_argument('--jac_reg_weight', default=0, type=float)
     parser.add_argument('--agip_rdx_weight', default=0, type=float)
+    parser.add_argument('--agop_avg_size', default=10, type=int)
     parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk'})
     args = parser.parse_args()
 
@@ -172,7 +173,7 @@ def main():
         M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
                        args.kernel_type, centers_bsize=-1, centering=True)
 
-        if len(Ms) == 10:
+        if len(Ms) == args.agop_avg_size:
             Ms.pop(0)
             Mcs.pop(0)
 
