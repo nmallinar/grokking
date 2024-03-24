@@ -6,14 +6,14 @@
 #SBATCH --mail-type=FAIL,TIME_LIMIT # get notified via email on job failure or time limit reached
 #
 #SBATCH --account bbjr-delta-gpu
-#SBATCH --partition gpuA100x4         # specify queue, if this doesnt submit try gpu-shared
+#SBATCH --partition gpuA40x4         # specify queue, if this doesnt submit try gpu-shared
 #SBATCH --gpus-per-node 1
-#SBATCH --cpus-per-task 8
-#SBATCH --mem 16G
+#SBATCH --cpus-per-task 16
+#SBATCH --mem 32G
 #SBATCH --nodes 1
 #SBATCH --tasks 1
 #SBATCH --tasks-per-node 1
-#SBATCH -t 10:00:00       # set maximum run time in H:M:S
+#SBATCH -t 08:00:00       # set maximum run time in H:M:S
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
