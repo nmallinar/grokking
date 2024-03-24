@@ -1,14 +1,21 @@
+import sys
 import argparse
 import wandb
 import torch
 import torch.nn.functional as F
 import numpy as np
+import random
 
 from data import operation_mod_p_data, make_data_splits
 from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk
 import utils
 
+import matplotlib.pyplot as plt
+
 torch.set_default_dtype(torch.float64)
+torch.manual_seed(13)
+random.seed(25)
+np.random.seed(15)
 
 def eval(sol, K, y_onehot):
     # preds = (sol @ K).T
@@ -145,6 +152,10 @@ def main():
             'training/loss': loss
         }, step=rfm_iter)
 
+        if acc < 0.9:
+            # kill the run if train accuracy diverges, we want to stay interpolating / near-interpolation
+            sys.exit(1)
+
         K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
 
         acc, loss, corr = eval(sol, K_test, y_te_onehot)
@@ -171,14 +182,49 @@ def main():
         M = torch.mean(torch.stack(Ms), dim=0)
         Mc = torch.mean(torch.stack(Mcs), dim=0)
 
-        # plt.clf()
-        # plt.imshow(M)
-        # plt.colorbar()
-        # img = wandb.Image(
-        #     plt,
-        #     caption=f'M'
-        # )
-        # wandb.log({log_key: img}, commit=commit)
+        # if rfm_iter % 25 == 0:
+        #     plt.clf()
+        #     plt.imshow(M)
+        #     plt.colorbar()
+        #     img = wandb.Image(
+        #         plt,
+        #         caption=f'M'
+        #     )
+        #     wandb.log({'M': img}, step=rfm_iter)
+        #
+        #     plt.clf()
+        #     plt.imshow(Mc)
+        #     plt.colorbar()
+        #     img = wandb.Image(
+        #         plt,
+        #         caption=f'Mc'
+        #     )
+        #     wandb.log({'Mc': img}, step=rfm_iter)
+        #
+        #     M_vals = torch.flip(torch.linalg.eigvalsh(M), (0,))
+        #     Mc_vals = torch.flip(torch.linalg.eigvalsh(Mc), (0,))
+        #
+        #     plt.clf()
+        #     plt.plot(range(len(M_vals)), np.log(M_vals))
+        #     plt.grid()
+        #     plt.xlabel('eigenvalue idx')
+        #     plt.ylabel('ln(eigenvalue)')
+        #     img = wandb.Image(
+        #         plt,
+        #         caption='M_eigenvalues'
+        #     )
+        #     wandb.log({'M_eigs': img}, step=rfm_iter)
+        #
+        #     plt.clf()
+        #     plt.plot(range(len(Mc_vals)), np.log(Mc_vals))
+        #     plt.grid()
+        #     plt.xlabel('eigenvalue idx')
+        #     plt.ylabel('ln(eigenvalue)')
+        #     img = wandb.Image(
+        #         plt,
+        #         caption='Mc_eigenvalues'
+        #     )
+        #     wandb.log({'Mc_eigs': img}, step=rfm_iter)
 
 if __name__=='__main__':
     main()
