@@ -183,6 +183,12 @@ def main():
         M = torch.mean(torch.stack(Ms), dim=0)
         Mc = torch.mean(torch.stack(Mcs), dim=0)
 
+        with torch.no_grad():
+            wandb.log({
+                'training/agop_tr': torch.trace(M),
+                'training/agip_tr': torch.trace(Mc)
+            }, step=rfm_iter)
+
         # if rfm_iter % 25 == 0:
         #     plt.clf()
         #     plt.imshow(M)

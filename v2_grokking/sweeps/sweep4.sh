@@ -17,11 +17,12 @@
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
+cd ..
 
-RIDGES=(1.0 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 5e-5 1e-5)
-BANDWIDTHS=(10 5 1 5e-1 1e-1 5e-2 1e-2)
-JACS=(0.0 1.0 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 5e-5 1e-5)
-AGIPS=(0.0 1.0 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3 5e-4 1e-4 5e-5 1e-5)
+RIDGES=(1e-3)
+BANDWIDTHS=(10 5 1 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3)
+JACS=(0.0 1.0 1e-1 1e-2 1e-3 1e-4 1e-5)
+AGIPS=(0.0 1.0 1e-1 1e-2 1e-3 1e-4 1e-5)
 AVGSIZE=(10 2 1)
 
 for ridge in "${RIDGES[@]}"
