@@ -13,7 +13,7 @@
 #SBATCH --nodes 1
 #SBATCH --tasks 1
 #SBATCH --tasks-per-node 1
-#SBATCH -t 08:00:00       # set maximum run time in H:M:S
+#SBATCH -t 12:00:00       # set maximum run time in H:M:S
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate

@@ -19,8 +19,8 @@
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
 cd ..
 
-RIDGES=(1e-2)
-BANDWIDTHS=(10 5 1 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3)
+RIDGES=(1.0)
+BANDWIDTHS=(2.5 2 1.75 1.5 1.25 0.75 0.5)
 JACS=(0.0 1.0 1e-1 1e-2 1e-3 1e-4 1e-5)
 AGIPS=(0.0 1.0 1e-1 1e-2 1e-3 1e-4 1e-5)
 AVGSIZE=(10 2 1)
