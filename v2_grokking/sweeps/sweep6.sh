@@ -41,7 +41,7 @@ do
             --operation "x+y" \
             --prime 31 \
             --training_fraction 0.5 \
-            --iters 1000 \
+            --iters 500 \
             --ridge ${ridge} \
             --bandwidth ${bw} \
             --jac_reg_weight ${jac} \

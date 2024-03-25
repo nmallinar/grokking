@@ -13,14 +13,14 @@
 #SBATCH --nodes 1
 #SBATCH --tasks 1
 #SBATCH --tasks-per-node 1
-#SBATCH -t 12:00:00       # set maximum run time in H:M:S
+#SBATCH -t 48:00:00       # set maximum run time in H:M:S
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
 cd ..
 
 RIDGES=(1e-1)
-BANDWIDTHS=(10 5 1 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3)
+BANDWIDTHS=(1 5e-1 1e-1 5e-2 1e-2 5e-3 1e-3)
 JACS=(0.0 1.0 1e-1 1e-2 1e-3 1e-4 1e-5)
 AGIPS=(0.0 1.0 1e-1 1e-2 1e-3 1e-4 1e-5)
 AVGSIZE=(10 2 1)
@@ -41,7 +41,7 @@ do
             --operation "x+y" \
             --prime 31 \
             --training_fraction 0.5 \
-            --iters 1000 \
+            --iters 500 \
             --ridge ${ridge} \
             --bandwidth ${bw} \
             --jac_reg_weight ${jac} \
