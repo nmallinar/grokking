@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import numpy as np
 import random
 
-from data import get_raw_splits, block_inputs
+from data import get_raw_splits, block_inputs, get_encode_decode_fns
 from models import gaussian_kernel, torch_fcn_relu_ntk
 import utils
 
@@ -16,6 +16,35 @@ torch.set_default_dtype(torch.float64)
 torch.manual_seed(13)
 random.seed(25)
 np.random.seed(15)
+
+def generate(sol, encoded_prompt, X_tr, M, bandwidth, ntk_depth, kernel_type, \
+             block_size, vocab_size, temperature=1.0, top_k=None, next_token_only=False,
+             max_new_tokens=1000):
+    idx = encoded_prompt
+
+    for _ in range(max_new_tokens):
+        idx_cond = idx if idx.size(1) <= block_size else idx[:, -block_size:]
+        idx_cond = F.one_hot(idx_cond, vocab_size).view(-1, block_size*vocab_size)
+        K_prompt = get_test_kernel(X_tr, idx_cond, M, bandwidth, ntk_depth, kernel_type)
+        preds = K_prompt.T @ sol
+
+        if next_token_only:
+            preds = preds / temperature
+            preds = preds.view(-1, 1, vocab_size)
+        else:
+            preds = preds.view(-1, block_size, vocab_size)
+            preds = preds[:, -1, :] / temperature
+
+        if top_k is not None:
+            v, _ = torch.topk(preds, min(top_k, preds.size(-1)))
+            preds[preds < v[:, [-1]]] = -float('Inf')
+
+         probs = F.softmax(preds, dim=-1)
+         idx_next = torch.multinomial(probs, num_samples=1)
+
+         idx = torch.cat((idx, idx_next), dim=1)
+
+    return idx
 
 def eval(sol, K, y_onehot):
     # preds = (sol @ K).T
@@ -115,6 +144,8 @@ def main():
     parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk'})
     args = parser.parse_args()
 
+    device='cpu'
+
     mode = 'online'
     if args.wandb_offline:
         mode = 'offline'
@@ -125,6 +156,12 @@ def main():
     wandb.run.name = f'{wandb.run.id} - p: {args.prime}, train_frac: {args.training_fraction}, ' + \
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
                      f'agip_rdx_weight: {args.agip_rdx_weight}'
+
+    encode, decode = get_encode_decode_fns()
+    with open('prompt.txt', 'r', encoding='utf-8') as f:
+        start = f.read()
+    start_ids = encode(start)[:args.block_size]
+    encoded_prompt = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])
 
     raw_train, raw_val = get_raw_splits()
     X_tr, y_tr = block_inputs(raw_train, args.block_size, args.n_train_samps)
