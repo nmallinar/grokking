@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import wandb
@@ -8,11 +9,10 @@ import random
 
 from data import get_raw_splits, block_inputs, get_encode_decode_fns
 from models import gaussian_kernel, torch_fcn_relu_ntk
-import utils
 
 import matplotlib.pyplot as plt
 
-torch.set_default_dtype(torch.float64)
+torch.set_default_dtype(torch.float32)
 torch.manual_seed(13)
 random.seed(25)
 np.random.seed(15)
@@ -24,13 +24,12 @@ def generate(sol, encoded_prompt, X_tr, M, bandwidth, ntk_depth, kernel_type, \
 
     for _ in range(max_new_tokens):
         idx_cond = idx if idx.size(1) <= block_size else idx[:, -block_size:]
-        idx_cond = F.one_hot(idx_cond, vocab_size).view(-1, block_size*vocab_size)
+        idx_cond = F.one_hot(idx_cond, vocab_size).view(-1, block_size*vocab_size).float()
         K_prompt = get_test_kernel(X_tr, idx_cond, M, bandwidth, ntk_depth, kernel_type)
         preds = K_prompt.T @ sol
 
         if next_token_only:
             preds = preds / temperature
-            preds = preds.view(-1, 1, vocab_size)
         else:
             preds = preds.view(-1, block_size, vocab_size)
             preds = preds[:, -1, :] / temperature
@@ -39,10 +38,10 @@ def generate(sol, encoded_prompt, X_tr, M, bandwidth, ntk_depth, kernel_type, \
             v, _ = torch.topk(preds, min(top_k, preds.size(-1)))
             preds[preds < v[:, [-1]]] = -float('Inf')
 
-         probs = F.softmax(preds, dim=-1)
-         idx_next = torch.multinomial(probs, num_samples=1)
+        probs = F.softmax(preds, dim=-1)
+        idx_next = torch.multinomial(probs, num_samples=1)
 
-         idx = torch.cat((idx, idx_next), dim=1)
+        idx = torch.cat((idx, idx_next), dim=1)
 
     return idx
 
@@ -129,10 +128,9 @@ def main():
     parser.add_argument('--wandb_proj_name', default='mar27-rfm-lm')
     parser.add_argument('--wandb_offline', default=False, action='store_true')
     parser.add_argument('--out_dir', default='./')
-    parser.add_argument('--n_train_samps', default=100, type=int)
+    parser.add_argument('--n_train_samps', default=10000, type=int)
     parser.add_argument('--n_val_samps', default=100, type=int)
     parser.add_argument('--block_size', default=32, type=int)
-    parser.add_argument('--batch_size', default=32, type=int)
     parser.add_argument('--next_token_only', default=False, action='store_true')
     parser.add_argument('--iters', default=50, type=int)
     parser.add_argument('--ridge', default=1e-3, type=float)
@@ -153,21 +151,20 @@ def main():
     wandb.init(entity=args.wandb_entity, project=args.wandb_proj_name, mode=mode, config=args,
                dir=args.out_dir)
 
-    wandb.run.name = f'{wandb.run.id} - p: {args.prime}, train_frac: {args.training_fraction}, ' + \
+    wandb.run.name = f'{wandb.run.id} - ' + \
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
                      f'agip_rdx_weight: {args.agip_rdx_weight}'
 
-    encode, decode = get_encode_decode_fns()
+    encode, decode, vocab_size = get_encode_decode_fns(data_dir='./data/shakespeare_char')
     with open('prompt.txt', 'r', encoding='utf-8') as f:
         start = f.read()
     start_ids = encode(start)[:args.block_size]
     encoded_prompt = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])
 
-    raw_train, raw_val = get_raw_splits()
-    X_tr, y_tr = block_inputs(raw_train, args.block_size, args.n_train_samps)
+    raw_train, raw_val = get_raw_splits(data_dir='./data/shakespeare_char')
+    X_tr, y_tr = block_inputs(raw_train, args.block_size, args.n_train_samps, next_token_only=args.next_token_only)
     X_te, y_te = block_inputs(raw_val, args.block_size, args.n_val_samps, next_token_only=args.next_token_only)
 
-    vocab_size = len(np.unique(X_tr))
     X_tr = F.one_hot(X_tr, vocab_size).view(-1, args.block_size * vocab_size).float()
     if args.next_token_only:
         y_tr_onehot = F.one_hot(y_tr, vocab_size).float()
@@ -180,8 +177,8 @@ def main():
     else:
         y_te_onehot = F.one_hot(y_te, vocab_size).view(-1, args.block_size * vocab_size).float()
 
-    M = torch.eye(X_tr.shape[1]).double()
-    Mc = torch.eye(y_tr_onehot.shape[1]).double()
+    M = torch.eye(X_tr.shape[1]).float()
+    Mc = torch.eye(y_tr_onehot.shape[1]).float()
 
     Ms = []
     Mcs = []
@@ -198,10 +195,6 @@ def main():
             'training/loss': loss
         }, step=rfm_iter)
 
-        if acc < 0.9:
-            # kill the run if train accuracy diverges, we want to stay interpolating / near-interpolation
-            sys.exit(1)
-
         K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
 
         acc, loss, corr = eval(sol, K_test, y_te_onehot)
@@ -209,11 +202,18 @@ def main():
         print(f'Round {rfm_iter} Test Acc:\t{acc}')
         # print(f'Round {rfm_iter} Test Corr:\t{corr}')
         print()
+        del K_test
 
         wandb.log({
             'validation/accuracy': acc,
             'validation/loss': loss
         }, step=rfm_iter)
+
+        generation = generate(sol, encoded_prompt, X_tr, M, args.bandwidth, args.ntk_depth, args.kernel_type, \
+                             args.block_size, vocab_size, temperature=1.0, top_k=None, next_token_only=args.next_token_only,
+                             max_new_tokens=100)
+        generation = decode(list(generation.squeeze().numpy()))
+        print(generation)
 
         M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
                        args.kernel_type, centers_bsize=-1, centering=True)

@@ -1,3 +1,5 @@
+import os
+import pickle
 import numpy as np
 import torch
 
@@ -13,15 +15,17 @@ def get_encode_decode_fns(data_dir='/scratch/bbjr/mallina1/data/shakespeare_char
         stoi, itos = meta['stoi'], meta['itos']
         encode = lambda s: [stoi[c] for c in s]
         decode = lambda l: ''.join([itos[i] for i in l])
+        vocab_size = meta['vocab_size']
 
-    return encode, decode
+    return encode, decode, vocab_size
 
 def block_inputs(data, block_size, batch_size, next_token_only=False):
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
 
     if next_token_only:
-        y = torch.stack([torch.from_numpy(data[i+1+block_size].astype(np.int64)) for i in ix])
+        toks = [data[i+1+block_size] for i in ix]
+        y = torch.from_numpy(np.array(toks).astype(np.int64))
     else:
         y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
 
