@@ -213,7 +213,16 @@ def main(args: dict):
                     idx_range = 2
 
                 out_w = model.out.weight.detach()
-                import ipdb; ipdb.set_trace()
+                nc_nfm = out_w @ out_w.t()
+                log_corr(nc_nfm, final_agips[0], f'right_agip{idx}_corr_to_nc_nfm_w{idx}', commit=False)
+                log_corr(nc_nfm, final_sqrt_agips[0], f'sqrt_right_agip{idx}_corr_to_nc_nfm_w{idx}', commit=False)
+                log_corr(nc_nfm, final_left_agips[0], f'left_agip{idx}_corr_to_nc_nfm_w{idx}', commit=False)
+                log_corr(nc_nfm, final_sqrt_left_agips[0], f'sqrt_left_agip{idx}_corr_to_nc_nfm_w{idx}', commit=False)
+
+                plot_agop(final_agips[idx], f'Right AGIP {idx}, Epoch {epoch}', f'right_agip{idx}', commit=False)
+                plot_agop(final_sqrt_agips[idx], f'Sqrt Right AGIP {idx}, Epoch {epoch}', f'sqrt_right_agip{idx}', commit=False)
+                plot_agop(final_left_agips[idx], f'Left AGIP {idx}, Epoch {epoch}', f'left_agip{idx}', commit=False)
+                plot_agop(final_sqrt_left_agips[idx], f'Sqrt Left AGIP {idx}, Epoch {epoch}', f'sqrt_left_agip{idx}', commit=False)
 
                 for idx in range(idx_range):
                     right_nfm = weights[idx].t() @ weights[idx]
