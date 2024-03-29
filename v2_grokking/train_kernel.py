@@ -123,6 +123,9 @@ def main():
     wandb.init(entity=args.wandb_entity, project=args.wandb_proj_name, mode=mode, config=args,
                dir=args.out_dir)
 
+    out_dir = os.path.join(args.out_dir, args.wandb_proj_name, wandb.run.id)
+    os.makedirs(out_dir, exist_ok=True)
+
     wandb.run.name = f'{wandb.run.id} - p: {args.prime}, train_frac: {args.training_fraction}, ' + \
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
                      f'agip_rdx_weight: {args.agip_rdx_weight}'
@@ -189,49 +192,52 @@ def main():
                 'training/agip_tr': torch.trace(Mc)
             }, step=rfm_iter)
 
-        # if rfm_iter % 25 == 0:
-        #     plt.clf()
-        #     plt.imshow(M)
-        #     plt.colorbar()
-        #     img = wandb.Image(
-        #         plt,
-        #         caption=f'M'
-        #     )
-        #     wandb.log({'M': img}, step=rfm_iter)
-        #
-        #     plt.clf()
-        #     plt.imshow(Mc)
-        #     plt.colorbar()
-        #     img = wandb.Image(
-        #         plt,
-        #         caption=f'Mc'
-        #     )
-        #     wandb.log({'Mc': img}, step=rfm_iter)
-        #
-        #     M_vals = torch.flip(torch.linalg.eigvalsh(M), (0,))
-        #     Mc_vals = torch.flip(torch.linalg.eigvalsh(Mc), (0,))
-        #
-        #     plt.clf()
-        #     plt.plot(range(len(M_vals)), np.log(M_vals))
-        #     plt.grid()
-        #     plt.xlabel('eigenvalue idx')
-        #     plt.ylabel('ln(eigenvalue)')
-        #     img = wandb.Image(
-        #         plt,
-        #         caption='M_eigenvalues'
-        #     )
-        #     wandb.log({'M_eigs': img}, step=rfm_iter)
-        #
-        #     plt.clf()
-        #     plt.plot(range(len(Mc_vals)), np.log(Mc_vals))
-        #     plt.grid()
-        #     plt.xlabel('eigenvalue idx')
-        #     plt.ylabel('ln(eigenvalue)')
-        #     img = wandb.Image(
-        #         plt,
-        #         caption='Mc_eigenvalues'
-        #     )
-        #     wandb.log({'Mc_eigs': img}, step=rfm_iter)
+        if rfm_iter % 25 == 0:
+            plt.clf()
+            plt.imshow(M)
+            plt.colorbar()
+            img = wandb.Image(
+                plt,
+                caption=f'M'
+            )
+            wandb.log({'M': img}, step=rfm_iter)
+
+            plt.clf()
+            plt.imshow(Mc)
+            plt.colorbar()
+            img = wandb.Image(
+                plt,
+                caption=f'Mc'
+            )
+            wandb.log({'Mc': img}, step=rfm_iter)
+
+            M_vals = torch.flip(torch.linalg.eigvalsh(M), (0,))
+            Mc_vals = torch.flip(torch.linalg.eigvalsh(Mc), (0,))
+
+            plt.clf()
+            plt.plot(range(len(M_vals)), np.log(M_vals))
+            plt.grid()
+            plt.xlabel('eigenvalue idx')
+            plt.ylabel('ln(eigenvalue)')
+            img = wandb.Image(
+                plt,
+                caption='M_eigenvalues'
+            )
+            wandb.log({'M_eigs': img}, step=rfm_iter)
+
+            plt.clf()
+            plt.plot(range(len(Mc_vals)), np.log(Mc_vals))
+            plt.grid()
+            plt.xlabel('eigenvalue idx')
+            plt.ylabel('ln(eigenvalue)')
+            img = wandb.Image(
+                plt,
+                caption='Mc_eigenvalues'
+            )
+            wandb.log({'Mc_eigs': img}, step=rfm_iter)
+
+            np.save(os.path.join(args.out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
+            np.save(os.path.join(args.out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
 
 if __name__=='__main__':
     main()
