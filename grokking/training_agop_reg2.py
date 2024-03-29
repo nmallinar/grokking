@@ -158,7 +158,7 @@ def main(args: dict):
         np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
 
     for epoch in tqdm(range(num_epochs)):
-        final_agops, final_left_agops = train(model, train_loader, agop_loader, optimizer, scheduler, device,
+        final_agops, final_left_agops, final_agips, final_left_agips = train(model, train_loader, agop_loader, optimizer, scheduler, device,
               config.num_steps, num_tokens, args.loss, config,
               embedding_layer=embedding_layer,
               agop_weight=config.agop_weight)
@@ -431,24 +431,24 @@ def calc_full_agops(model, loader, config, num_tokens, embedding_layer=None):
         nsamps = inputs.size(0)
         total_n += nsamps
 
-        startt = time.time()
-        left_agop_test = 0.0
-        hid1 = inputs @ model.fc1.weight.T
-        hid1 = (hid1 > 0).float()
-        agop = 0.0
-        test1 = model.out.weight.T @ model.out.weight
-        test2 = model.fc1.weight @ model.fc1.weight.T
-        for jdx in range(hid1.shape[0]):
-            dhid1 = torch.diag(hid1[jdx])
-            left_agop_test += model.fc1.weight.T @ dhid1 @ model.out.weight.T @ model.out.weight @ dhid1 @ model.fc1.weight
-        comptime = time.time() - startt
+        # startt = time.time()
+        # left_agop_test = 0.0
+        # hid1 = inputs @ model.fc1.weight.T
+        # hid1 = (hid1 > 0).float()
+        # agop = 0.0
+        # test1 = model.out.weight.T @ model.out.weight
+        # test2 = model.fc1.weight @ model.fc1.weight.T
+        # for jdx in range(hid1.shape[0]):
+        #     dhid1 = torch.diag(hid1[jdx])
+        #     left_agop_test += model.fc1.weight.T @ dhid1 @ model.out.weight.T @ model.out.weight @ dhid1 @ model.fc1.weight
+        # comptime = time.time() - startt
 
-        startt = time.time()
+        # startt = time.time()
         agops, left_agops, agips, left_agips = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
-        comptime2 = time.time() - startt
+        # comptime2 = time.time() - startt
 
-        print(torch.linalg.norm((agops[0] * nsamps) - left_agop_test))
-        print(f'custom: {comptime}, jac: {comptime2}')
+        # print(torch.linalg.norm((agops[0] * nsamps) - left_agop_test))
+        # print(f'custom: {comptime}, jac: {comptime2}')
 
         for jdx in range(len(agops)):
             if idx == 0:
@@ -553,7 +553,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
 
 
         if not config.skip_agop_comps:
-            final_agops, final_left_agops, _, _ = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=None)
+            final_agops, final_left_agops, final_agips, final_left_agips = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=None)
             # dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
             # dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
             # dumb3 = torch.zeros((config.agop_subsample_n, n_classes)).to(config.device)
@@ -618,9 +618,9 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             return
 
     if not config.skip_agop_comps:
-        return final_agops, final_left_agops
+        return final_agops, final_left_agops, final_agips, final_left_agips
     else:
-        return None, None
+        return None, None, None, None
 
 def evaluate(model, val_loader, device, epoch, num_tokens, loss_arg, config, embedding_layer=None, log_key='', compute_margins=False):
     # Set model to evaluation mode
