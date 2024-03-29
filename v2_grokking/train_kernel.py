@@ -128,7 +128,7 @@ def main():
 
     wandb.run.name = f'{wandb.run.id} - p: {args.prime}, train_frac: {args.training_fraction}, ' + \
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
-                     f'agip_rdx_weight: {args.agip_rdx_weight}'
+                     f'agip_rdx_weight: {args.agip_rdx_weight}, agop_avg_size: {args.agop_avg_size}'
 
     all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
     X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
