@@ -177,21 +177,33 @@ def main(args: dict):
                     visual_weights(model, epoch)
 
                 if final_agops is None:
-                    final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=embedding_layer)
+                    with torch.no_grad():
+                        final_agops, final_left_agops, final_agips, final_left_agips = \
+                            calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=embedding_layer)
                 else:
                     for idx in range(len(final_agops)):
                         final_agops[idx] = final_agops[idx].detach()
                         final_left_agops[idx] = final_left_agops[idx].detach()
+                        final_agips[idx] = final_agips[idx].detach()
+                        final_left_agips[idx] = final_left_agips[idx].detach()
 
                 final_sqrt_agops = []
                 final_sqrt_left_agops = []
+                final_sqrt_agips = []
+                final_sqrt_left_agips = []
                 for idx in range(len(final_agops)):
                     final_agops[idx] = final_agops[idx].cpu().numpy()
                     final_left_agops[idx] = final_left_agops[idx].cpu().numpy()
                     final_sqrt_agops.append(np.real(scipy.linalg.sqrtm(final_agops[idx])))
                     final_sqrt_left_agops.append(np.real(scipy.linalg.sqrtm(final_left_agops[idx])))
 
+                    final_agips[idx] = final_agips[idx].cpu().numpy()
+                    final_left_agips[idx] = final_left_agips[idx].cpu().numpy()
+                    final_sqrt_agips.append(np.real(scipy.linalg.sqrtm(final_agips[idx])))
+                    final_sqrt_left_agips.append(np.real(scipy.linalg.sqrtm(final_left_agips[idx])))
+
                 log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False)
+                log_agop_norms(final_agips, final_sqrt_agips, final_left_agips, final_sqrt_left_agips, commit=False, is_agip=True)
 
                 if config.model == 'OneLayerFCN':
                     weights = [model.fc1.weight.detach()]
@@ -199,6 +211,9 @@ def main(args: dict):
                 elif config.model == 'TwoLayerFCN' or config.model == 'FourLayerFCN':
                     weights = [model.fc1.weight.detach(), model.fc2.weight.detach()]
                     idx_range = 2
+
+                out_w = model.out.weight.detach()
+                import ipdb; ipdb.set_trace()
 
                 for idx in range(idx_range):
                     right_nfm = weights[idx].t() @ weights[idx]
@@ -272,24 +287,29 @@ def main(args: dict):
                     # can save less frequently once we generalize
                     log_freq = 1000
 
-def log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False):
+def log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_left_agops, commit=False,
+                   is_agip=False):
+    key = 'agop'
+    if is_agip:
+        key = 'agip'
+
     for idx, agop in enumerate(final_agops):
         fro_norm = np.linalg.norm(agop, ord='fro')
         two_norm = np.linalg.norm(agop, ord=2)
         stable_rank = (fro_norm ** 2) / (two_norm ** 2)
         wandb.log({
-            f'norms/right_agop{idx}_fro_norm': fro_norm,
-            f'norms/right_agop{idx}_two_norm': two_norm,
-            f'norms/right_agop{idx}_stable_rank': stable_rank
+            f'norms/right_{key}{idx}_fro_norm': fro_norm,
+            f'norms/right_{key}{idx}_two_norm': two_norm,
+            f'norms/right_{key}{idx}_stable_rank': stable_rank
         }, commit=commit)
 
         fro_norm = np.linalg.norm(final_sqrt_agops[idx], ord='fro')
         two_norm = np.linalg.norm(final_sqrt_agops[idx], ord=2)
         stable_rank = (fro_norm ** 2) / (two_norm ** 2)
         wandb.log({
-            f'norms/sqrt_right_agop{idx}_fro_norm': fro_norm,
-            f'norms/sqrt_right_agop{idx}_two_norm': two_norm,
-            f'norms/sqrt_right_agop{idx}_stable_rank': stable_rank
+            f'norms/sqrt_right_{key}{idx}_fro_norm': fro_norm,
+            f'norms/sqrt_right_{key}{idx}_two_norm': two_norm,
+            f'norms/sqrt_right_{key}{idx}_stable_rank': stable_rank
         }, commit=commit)
 
     for idx, agop in enumerate(final_left_agops):
@@ -297,18 +317,18 @@ def log_agop_norms(final_agops, final_sqrt_agops, final_left_agops, final_sqrt_l
         two_norm = np.linalg.norm(agop, ord=2)
         stable_rank = (fro_norm ** 2) / (two_norm ** 2)
         wandb.log({
-            f'norms/left_agop{idx}_fro_norm': fro_norm,
-            f'norms/left_agop{idx}_two_norm': two_norm,
-            f'norms/left_agop{idx}_stable_rank': stable_rank
+            f'norms/left_{key}{idx}_fro_norm': fro_norm,
+            f'norms/left_{key}{idx}_two_norm': two_norm,
+            f'norms/left_{key}{idx}_stable_rank': stable_rank
         }, commit=commit)
 
         fro_norm = np.linalg.norm(final_sqrt_left_agops[idx], ord='fro')
         two_norm = np.linalg.norm(final_sqrt_left_agops[idx], ord=2)
         stable_rank = (fro_norm ** 2) / (two_norm ** 2)
         wandb.log({
-            f'norms/sqrt_left_agop{idx}_fro_norm': fro_norm,
-            f'norms/sqrt_left_agop{idx}_two_norm': two_norm,
-            f'norms/sqrt_left_agop{idx}_stable_rank': stable_rank
+            f'norms/sqrt_left_{key}{idx}_fro_norm': fro_norm,
+            f'norms/sqrt_left_{key}{idx}_two_norm': two_norm,
+            f'norms/sqrt_left_{key}{idx}_stable_rank': stable_rank
         }, commit=commit)
 
 def log_corr(nfm, agop, log_key, commit=False):
@@ -392,6 +412,8 @@ def calc_full_agops(model, loader, config, num_tokens, embedding_layer=None):
 
     final_agops = []
     final_left_agops = []
+    final_agips = []
+    final_left_agips = []
     total_n = 0
     for idx, batch in enumerate(loader):
         # Copy data to device if needed
@@ -422,7 +444,7 @@ def calc_full_agops(model, loader, config, num_tokens, embedding_layer=None):
         comptime = time.time() - startt
 
         startt = time.time()
-        agops, left_agops = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
+        agops, left_agops, agips, left_agips = calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
         comptime2 = time.time() - startt
 
         print(torch.linalg.norm((agops[0] * nsamps) - left_agop_test))
@@ -432,15 +454,21 @@ def calc_full_agops(model, loader, config, num_tokens, embedding_layer=None):
             if idx == 0:
                 final_agops.append(agops[jdx]*nsamps)
                 final_left_agops.append(left_agops[jdx]*nsamps)
+                final_agips.append(agips[jdx]*nsamps)
+                final_left_agips.append(left_agips[jdx]*nsamps)
             else:
                 final_agops[jdx] += agops[jdx]*nsamps
                 final_left_agops[jdx] += left_agops[jdx]*nsamps
+                final_agips[jdx] += agips[jdx]*nsamps
+                final_left_agips[jdx] += left_agips[jdx]*nsamps
 
     for idx in range(len(agops)):
         final_agops[idx] /= total_n
         final_left_agops[idx] /= total_n
+        final_agips[idx] /= total_n
+        final_left_agips[idx] /= total_n
 
-    return final_agops, final_left_agops
+    return final_agops, final_left_agops, final_agips, final_left_agips
 
 def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, device, config):
     # all of these methods work for computing jacobians, they have different
@@ -476,18 +504,23 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
 
     agops = []
     left_agops = []
+    agips = []
+    left_agips = []
 
     for idx in range(len(jacs)):
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inputs), -1)
 
         agop = jacs[idx].t() @ jacs[idx] / len(inputs)
+        agip = jacs[idx] @ jacs[idx].t() / len(inputs)
 
         if idx in left_idx:
             left_agops.append(agop)
+            left_agips.append(agip)
         else:
             agops.append(agop)
+            agips.append(agip)
 
-    return agops, left_agops
+    return agops, left_agops, agips, left_agips
 
 def train(model, train_loader, agop_loader, optimizer, scheduler,
           device, num_steps, num_tokens, loss_arg, config,
@@ -520,7 +553,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
 
 
         if not config.skip_agop_comps:
-            final_agops, final_left_agops = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=None)
+            final_agops, final_left_agops, _, _ = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=None)
             # dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
             # dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
             # dumb3 = torch.zeros((config.agop_subsample_n, n_classes)).to(config.device)
