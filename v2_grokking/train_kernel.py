@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 import wandb
@@ -13,9 +14,9 @@ import utils
 import matplotlib.pyplot as plt
 
 torch.set_default_dtype(torch.float64)
-torch.manual_seed(13)
-random.seed(25)
-np.random.seed(15)
+#torch.manual_seed(13)
+#random.seed(25)
+#np.random.seed(15)
 
 def eval(sol, K, y_onehot):
     # preds = (sol @ K).T
@@ -156,10 +157,6 @@ def main():
             'training/loss': loss
         }, step=rfm_iter)
 
-        if acc < 0.9:
-            # kill the run if train accuracy diverges, we want to stay interpolating / near-interpolation
-            sys.exit(1)
-
         K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
 
         acc, loss, corr = eval(sol, K_test, y_te_onehot)
@@ -236,8 +233,9 @@ def main():
             )
             wandb.log({'Mc_eigs': img}, step=rfm_iter)
 
-            np.save(os.path.join(args.out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
-            np.save(os.path.join(args.out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
+            os.makedirs(os.path.join(out_dir, f'iter_{rfm_iter}'), exist_ok=True)
+            np.save(os.path.join(out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
+            np.save(os.path.join(out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
 
 if __name__=='__main__':
     main()
