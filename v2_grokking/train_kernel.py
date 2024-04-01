@@ -14,9 +14,9 @@ import utils
 import matplotlib.pyplot as plt
 
 torch.set_default_dtype(torch.float64)
-#torch.manual_seed(13)
-#random.seed(25)
-#np.random.seed(15)
+# torch.manual_seed(13)
+# random.seed(25)
+# np.random.seed(15)
 
 def eval(sol, K, y_onehot):
     # preds = (sol @ K).T
@@ -113,8 +113,11 @@ def main():
     parser.add_argument('--ntk_depth', default=2, type=int)
     parser.add_argument('--jac_reg_weight', default=0, type=float)
     parser.add_argument('--agip_rdx_weight', default=0, type=float)
-    parser.add_argument('--agop_avg_size', default=10, type=int)
+    parser.add_argument('--agop_sma_size', default=10, type=int)
+    parser.add_argument('--ema_alpha', default=0.9, type=float)
+    parser.add_argument('--use_ema', default=False, action='store_true')
     parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk'})
+    parser.add_argument('--save_agops', default=False, action='store_true')
     args = parser.parse_args()
 
     mode = 'online'
@@ -129,7 +132,7 @@ def main():
 
     wandb.run.name = f'{wandb.run.id} - p: {args.prime}, train_frac: {args.training_fraction}, ' + \
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
-                     f'agip_rdx_weight: {args.agip_rdx_weight}, agop_avg_size: {args.agop_avg_size}'
+                     f'agip_rdx_weight: {args.agip_rdx_weight}, agop_sma_size: {args.agop_sma_size}'
 
     all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
     X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
@@ -138,6 +141,9 @@ def main():
     y_tr_onehot = F.one_hot(y_tr, args.prime).double()
     X_te = F.one_hot(X_te, args.prime).view(-1, 2*args.prime).double()
     y_te_onehot = F.one_hot(y_te, args.prime).double()
+
+    X_agop = torch.cat((X_tr, X_te))
+    # X_agop = torch.randn(2000, X_agop.shape[1])
 
     M = torch.eye(X_tr.shape[1]).double()
     Mc = torch.eye(y_tr_onehot.shape[1]).double()
@@ -170,18 +176,39 @@ def main():
             'validation/loss': loss
         }, step=rfm_iter)
 
+        # M_new, Mc_new = torch.zeros(X_tr.shape[1], X_tr.shape[1]), torch.zeros(y_tr_onehot.shape[1], y_tr_onehot.shape[1])
+        # for _ in range(2):
+        #     perm = torch.randperm(X_agop.shape[0])
+        #     X_samp = X_agop[perm[:X_tr.shape[0]],:]
+        #     M_temp, Mc_temp = update(X_tr, X_samp, args.bandwidth, M, sol, None, None, \
+        #                              args.kernel_type, centers_bsize=-1, centering=True)
+        #     M_new += M_temp
+        #     Mc_new += Mc_temp
+        #
+        # M_new /= 2
+        # Mc_new /= 2
+
+        # M_new, Mc_new = update(X_tr, X_agop, args.bandwidth, M, sol, None, None, \
+        #                args.kernel_type, centers_bsize=-1, centering=True)
+        # M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, None, None, \
+                       # args.kernel_type, centers_bsize=-1, centering=True)
         M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
                        args.kernel_type, centers_bsize=-1, centering=True)
 
-        if len(Ms) == args.agop_avg_size:
-            Ms.pop(0)
-            Mcs.pop(0)
+        if args.use_ema:
+            M = args.ema_alpha * M_new + (1 - args.ema_alpha) * M
+            Mc = args.ema_alpha * Mc_new + (1 - args.ema_alpha) * Mc
+        else:
+            # use simple moving average
+            if len(Ms) == args.agop_sma_size:
+                Ms.pop(0)
+                Mcs.pop(0)
 
-        Ms.append(M_new)
-        Mcs.append(Mc_new)
+            Ms.append(M_new)
+            Mcs.append(Mc_new)
 
-        M = torch.mean(torch.stack(Ms), dim=0)
-        Mc = torch.mean(torch.stack(Mcs), dim=0)
+            M = torch.mean(torch.stack(Ms), dim=0)
+            Mc = torch.mean(torch.stack(Mcs), dim=0)
 
         with torch.no_grad():
             wandb.log({
@@ -189,7 +216,10 @@ def main():
                 'training/agip_tr': torch.trace(Mc)
             }, step=rfm_iter)
 
-        if rfm_iter % 25 == 0:
+        if (rfm_iter < 25) or \
+            (rfm_iter < 100 and rfm_iter % 25 == 0) or \
+            (rfm_iter < 500 and rfm_iter % 50 == 0):
+
             plt.clf()
             plt.imshow(M)
             plt.colorbar()
@@ -233,9 +263,10 @@ def main():
             )
             wandb.log({'Mc_eigs': img}, step=rfm_iter)
 
-            os.makedirs(os.path.join(out_dir, f'iter_{rfm_iter}'), exist_ok=True)
-            np.save(os.path.join(out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
-            np.save(os.path.join(out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
+            if args.save_agops:
+                os.makedirs(os.path.join(out_dir, f'iter_{rfm_iter}'), exist_ok=True)
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
 
 if __name__=='__main__':
     main()

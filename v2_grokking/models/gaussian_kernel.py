@@ -52,10 +52,11 @@ def gaussian_M(samples, centers, bandwidth, M, return_dist=False):
 
     return kernel_mat
 
-def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False):
+def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None):
     M = 0.
 
-    x = X
+    if x is None:
+        x = X
 
     if K is None:
         K = gaussian_M(X, x, L, P)
@@ -117,13 +118,13 @@ def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False):
 
 def gaussian_M_update(samples, centers, bandwidth, M, weights, K=None, \
                       centers_bsize=-1, centering=False):
-    return get_grads(samples, weights.T, bandwidth, M, K=K, centering=centering)
+    return get_grads(samples, weights.T, bandwidth, M, K=K, centering=centering, x=centers)
 
 def get_jac_reg(samples, centers, bandwidth, M, K=None, \
                 centering=False):
     '''
-    K(x, y) = exp(-sqrt((x-y).T @ M @ (x - y)) / L)
-    grad_x K(x, y) =  * -(K(x, y) / L*sqrt((x-y).T @ M @ (x - y))) * M (x - y) \in \R^{d}
+    K(x, y) = exp(-((x-y).T @ M @ (x - y)) / L)
+    grad_x K(x, y) =  * -(K(x, y) / L * M (x - y) \in \R^{d}
 
     G(x)_i \in \R^{n \times d} = grad_x K(x, x_i).T
 
@@ -142,7 +143,7 @@ def get_jac_reg(samples, centers, bandwidth, M, K=None, \
     del samples, centers
 
     all_diffs = all_diffs @ M
-    all_diffs /= (bandwidth**2)
+    all_diffs /= (2*(bandwidth**2))
 
     K = K.unsqueeze(1) * K.unsqueeze(2)
 
@@ -156,4 +157,4 @@ def get_jac_reg(samples, centers, bandwidth, M, K=None, \
         # check that prod: (32, n, n) and K[idx:idx+32]: (32, n, n)
         G += torch.sum(prod * K[idx:idx + 32], dim=0)
 
-    return G
+    return G / all_diffs.shape[0]
