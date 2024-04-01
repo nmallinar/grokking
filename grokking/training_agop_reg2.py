@@ -214,6 +214,7 @@ def main(args: dict):
 
                 out_w = model.out.weight.detach()
                 nc_nfm = out_w @ out_w.t()
+                nc_nfm = nc_nfm.cpu().numpy()
                 log_corr(nc_nfm, final_agips[0], f'right_agip{idx}_corr_to_nc_nfm_w{idx}', commit=False)
                 log_corr(nc_nfm, final_sqrt_agips[0], f'sqrt_right_agip{idx}_corr_to_nc_nfm_w{idx}', commit=False)
                 log_corr(nc_nfm, final_left_agips[0], f'left_agip{idx}_corr_to_nc_nfm_w{idx}', commit=False)
@@ -517,10 +518,11 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
     left_agips = []
 
     for idx in range(len(jacs)):
+        cjac = torch.sum(jacs[idx], dim=(2, 3)).reshape(len(inputs), jacs[idx].shape[1])
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inputs), -1)
-
+    
         agop = jacs[idx].t() @ jacs[idx] / len(inputs)
-        agip = jacs[idx] @ jacs[idx].t() / len(inputs)
+        agip = cjac.t() @ cjac / len(inputs)
 
         if idx in left_idx:
             left_agops.append(agop)

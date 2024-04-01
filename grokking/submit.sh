@@ -30,9 +30,9 @@ python cli.py \
   --fcn_hidden_width 256 \
   --eval_entk -1 \
   --num_layers 1 \
-  --weight_decay 0.0 \
-  --agop_weight 10.0 \
-  --wandb_proj_name "mar18-grokking" \
+  --weight_decay 1.0 \
+  --agop_weight 0.0 \
+  --wandb_proj_name "mar29-nn-grokking" \
   --agop_subsample_n 32 \
   --learning_rate 0.001 \
   --optimizer "adamw" \
@@ -40,5 +40,4 @@ python cli.py \
   --num_steps 10000 \
   --out_dir "/scratch/bbjr/mallina1/grokking_output" \
   --act_fn "relu" \
-  --init_scale 0.0001 \
-  --wandb_offline
+  --init_scale 0.0001 
