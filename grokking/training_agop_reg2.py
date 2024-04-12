@@ -520,7 +520,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
     for idx in range(len(jacs)):
         cjac = torch.sum(jacs[idx], dim=(2, 3)).reshape(len(inputs), jacs[idx].shape[1])
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inputs), -1)
-    
+
         agop = jacs[idx].t() @ jacs[idx] / len(inputs)
         agip = cjac.t() @ cjac / len(inputs)
 
@@ -625,8 +625,8 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         wandb.log(metrics)
 
         # Finish training at maximum gradient updates
-        if wandb.run.step * len(train_loader) == num_steps:
-            return
+        # if wandb.run.step * len(train_loader) == num_steps:
+        #     return
 
     if not config.skip_agop_comps:
         return final_agops, final_left_agops, final_agips, final_left_agips
