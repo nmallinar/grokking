@@ -172,7 +172,7 @@ def main(args: dict):
 
             #print(f'Epoch {epoch}:\t Train Acc: {train_acc}\t Total Val Acc: {val_acc}\t Val Acc (n <= p): {val_acc1}')
 
-            if not args.skip_agop_comps:
+            if not args.skip_agop_comps and epoch % log_freq == 0:
                 if epoch % log_freq == 0:
                     visual_weights(model, epoch)
 
