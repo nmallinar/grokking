@@ -250,9 +250,6 @@ def main(args: dict):
 
 
                 if epoch % log_freq == 0:
-                    ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
-                    os.makedirs(ep_out_dir, exist_ok=True)
-
                     nfm = model.fc1.weight.t() @ model.fc1.weight
                     np.save(os.path.join(ep_out_dir, f'right_nfm.npy'), nfm.detach().cpu().numpy())
 
@@ -267,6 +264,7 @@ def main(args: dict):
 
 
             if epoch % log_freq == 0:
+                ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
                 syn_data_dir = os.path.join(ep_out_dir, 'synthetic_data')
                 os.makedirs(syn_data_dir, exist_ok=True)
 
