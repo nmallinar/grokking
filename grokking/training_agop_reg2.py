@@ -159,7 +159,7 @@ def main(args: dict):
 
     for epoch in tqdm(range(num_epochs)):
         final_agops, final_left_agops, final_agips, final_left_agips = train(model, train_loader, agop_loader, optimizer, scheduler, device,
-              config.num_steps, num_tokens, args.loss, config,
+              config.num_steps, num_tokens, args.loss, config, epoch,
               embedding_layer=embedding_layer,
               agop_weight=config.agop_weight)
 
@@ -532,7 +532,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
     return agops, left_agops, agips, left_agips
 
 def train(model, train_loader, agop_loader, optimizer, scheduler,
-          device, num_steps, num_tokens, loss_arg, config,
+          device, num_steps, num_tokens, loss_arg, config, epoch,
           embedding_layer=None, agop_weight=0.0):
 
     n_classes = config.prime
@@ -561,7 +561,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             inputs = inputs.view(inputs.size(0), -1)
 
 
-        if not config.skip_agop_comps:
+        if not config.skip_agop_comps and epoch % 100 == 0 and batch == 0 or (agop_weight > 0):
             final_agops, final_left_agops, final_agips, final_left_agips = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=None)
             # dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
             # dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
@@ -588,7 +588,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         # Backward pass
         mse_loss = loss.clone()
 
-        if not config.skip_agop_comps:
+        if not config.skip_agop_comps and epoch % 100 == 0 and batch == 0 or (agop_weight > 0):
             agop_tr = 0.0
             left_agop_tr = 0.0
             for idx in range(len(final_agops)):
@@ -610,23 +610,35 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         optimizer.step()
         # scheduler.step()
 
-        metrics = {
-            "training/accuracy": acc,
-            "training/loss": loss,
-            "training/mse_loss": mse_loss,
-            "training/agop_tr": agop_tr,
-            "training/left_agop_tr": left_agop_tr,
-            "training/weight_norm_fc1": weight_norm_fc1,
-            "training/weight_norm_out": weight_norm_out,
-            "step": wandb.run.step
-        }
+        if not config.skip_agop_comps and epoch % 100 == 0 and batch == 0 or (agop_weight > 0):
+            metrics = {
+                "training/accuracy": acc,
+                "training/loss": loss,
+                "training/mse_loss": mse_loss,
+                "training/agop_tr": agop_tr,
+                "training/left_agop_tr": left_agop_tr,
+                "training/weight_norm_fc1": weight_norm_fc1,
+                "training/weight_norm_out": weight_norm_out,
+                "step": wandb.run.step
+            }
+        else:
+            metrics = {
+                "training/accuracy": acc,
+                "training/loss": loss,
+                "training/mse_loss": mse_loss,
+                # "training/agop_tr": agop_tr,
+                # "training/left_agop_tr": left_agop_tr,
+                "training/weight_norm_fc1": weight_norm_fc1,
+                "training/weight_norm_out": weight_norm_out,
+                "step": wandb.run.step
+            }
         wandb.log(metrics)
 
         # Finish training at maximum gradient updates
         # if wandb.run.step * len(train_loader) == num_steps:
         #     return
 
-    if not config.skip_agop_comps:
+    if not config.skip_agop_comps and epoch % 100 == 0:
         return final_agops, final_left_agops, final_agips, final_left_agips
     else:
         return None, None, None, None
