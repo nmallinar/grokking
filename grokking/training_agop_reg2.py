@@ -250,6 +250,8 @@ def main(args: dict):
 
 
                 if epoch % log_freq == 0:
+                    ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
+                    os.makedirs(ep_out_dir, exist_ok=True)
                     nfm = model.fc1.weight.t() @ model.fc1.weight
                     np.save(os.path.join(ep_out_dir, f'right_nfm.npy'), nfm.detach().cpu().numpy())
 
@@ -545,7 +547,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         criterion = torch.nn.CrossEntropyLoss()
 
     # Loop over each batch from the training set
-    for batch in train_loader:
+    for batch_idx, batch in enumerate(train_loader):
         # Copy data to device if needed
         batch = tuple(t.to(device) for t in batch)
 
@@ -561,7 +563,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             inputs = inputs.view(inputs.size(0), -1)
 
 
-        if not config.skip_agop_comps and epoch % 100 == 0 and batch == 0 or (agop_weight > 0):
+        if not config.skip_agop_comps and epoch % 100 == 0 and batch_idx == 0 or (agop_weight > 0):
             final_agops, final_left_agops, final_agips, final_left_agips = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=None)
             # dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
             # dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
@@ -588,7 +590,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         # Backward pass
         mse_loss = loss.clone()
 
-        if not config.skip_agop_comps and epoch % 100 == 0 and batch == 0 or (agop_weight > 0):
+        if not config.skip_agop_comps and epoch % 100 == 0 and batch_idx == 0 or (agop_weight > 0):
             agop_tr = 0.0
             left_agop_tr = 0.0
             for idx in range(len(final_agops)):
@@ -610,7 +612,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         optimizer.step()
         # scheduler.step()
 
-        if not config.skip_agop_comps and epoch % 100 == 0 and batch == 0 or (agop_weight > 0):
+        if not config.skip_agop_comps and epoch % 100 == 0 and batch_idx == 0 or (agop_weight > 0):
             metrics = {
                 "training/accuracy": acc,
                 "training/loss": loss,
