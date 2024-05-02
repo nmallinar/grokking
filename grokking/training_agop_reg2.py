@@ -18,11 +18,11 @@ from torch.func import jacrev
 from rfm import main as rfm_main
 from inf_ntk import ntk_fn, jax_ntk_fn, get_jax_ntk_fn
 
-# torch.manual_seed(34)
-# import random
-# random.seed(23)
-# np.random.seed(234)
-# torch.set_default_dtype(torch.float32)
+torch.manual_seed(34)
+import random
+random.seed(23)
+np.random.seed(234)
+torch.set_default_dtype(torch.float32)
 
 kernel_fn = get_jax_ntk_fn(depth=2, bias=0)
 
@@ -606,6 +606,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         weight_norm_fc1 = torch.linalg.norm(model.fc1.weight.data).detach()
         weight_norm_out = torch.linalg.norm(model.out.weight.data).detach()
 
+        #loss += weight_norm_fc1
         loss.backward()
 
         # Update weights

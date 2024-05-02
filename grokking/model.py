@@ -1,3 +1,4 @@
+import numpy as np
 from einops import rearrange, repeat
 import torch
 from torch import nn, Tensor
@@ -47,6 +48,10 @@ class OneLayerFCN(torch.nn.Module):
     self.reset_params(init_scale=init_scale)
 
   def reset_params(self, init_scale=1.0):
+    #kernel_M = torch.from_numpy(np.load('x+y_M.npy')).float()
+    #dist = torch.distributions.multivariate_normal.MultivariateNormal(torch.zeros(self.fc1.weight.shape[1]), kernel_M + 1e-6 * torch.eye(kernel_M.shape[0]))
+    #self.fc1.weight.data = dist.sample_n(self.fc1.weight.shape[0])
+
     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(self.fc1.weight, -init_scale*bound, init_scale*bound)

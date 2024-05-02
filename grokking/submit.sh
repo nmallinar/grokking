@@ -13,31 +13,34 @@
 #SBATCH --nodes 1
 #SBATCH --tasks 1
 #SBATCH --tasks-per-node 1
-#SBATCH -t 10:00:00       # set maximum run time in H:M:S
+#SBATCH -t 2:00:00       # set maximum run time in H:M:S
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 #source /projects/bbjr/mallina1/envs/torch2/bin/activate
-source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
+#source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
+source ~/envs/torch_jax2/bin/activate
+
 python cli.py \
   --run "agop2" \
   --training_fraction 0.5 \
   --prime 31 \
   --num_tokens 31 \
+  --operation "x+y" \
   --batch_size 32 \
   --dim_model 128 \
   --device cuda \
-  --model OneLayerFCN \
+  --model FourLayerFCN \
   --fcn_hidden_width 256 \
   --eval_entk -1 \
   --num_layers 1 \
   --weight_decay 1.0 \
   --agop_weight 0.0 \
-  --wandb_proj_name "mar29-nn-grokking" \
-  --agop_subsample_n 32 \
+  --wandb_proj_name "apr30-nn-grokking" \
+  --agop_subsample_n 4 \
   --learning_rate 0.001 \
   --optimizer "adamw" \
   --momentum 0.0 \
   --num_steps 10000 \
   --out_dir "/scratch/bbjr/mallina1/grokking_output" \
-  --act_fn "relu" \
-  --init_scale 0.0001 
+  --act_fn "pow2" \
+  --init_scale 1.0
