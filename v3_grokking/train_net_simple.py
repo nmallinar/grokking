@@ -136,12 +136,28 @@ def main():
             total_loss /= total
             acc = count / total
 
+            if acc == 1.0:
+                nfm = model.fc1.weight.data.T @ model.fc1
+                np.save('nfm.npy', nfm.detach().cpu().numpy())
+
             #print(f'Epoch {epoch}:\tacc: {acc}\tloss: {loss}')
             wandb.log({
                 'validation/accuracy': acc,
                 'validation/loss': total_loss,
                 'epoch': epoch
             }, step=global_step)
+
+        nfm = model.fc1.weight.data.T @ model.fc1
+        nfm = nfm.detach().cpu().numpy()
+        plt.clf()
+        plt.imshow(nfm)
+        plt.colorbar()
+        img = wandb.Image(
+            plt,
+            caption='NFM'
+        )
+        wandb.log({'NFM': img}, step=global_step)
+
 
 if __name__=='__main__':
     main()
