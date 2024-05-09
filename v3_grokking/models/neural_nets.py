@@ -32,13 +32,26 @@ class OneLayerFCN(torch.nn.Module):
     #dist = torch.distributions.multivariate_normal.MultivariateNormal(torch.zeros(self.fc1.weight.shape[1]), kernel_M + 1e-6 * torch.eye(kernel_M.shape[0]))
     #self.fc1.weight.data = dist.sample_n(self.fc1.weight.shape[0])
 
-    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
-    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-    nn.init.uniform_(self.fc1.weight, -init_scale*bound, init_scale*bound)
+    # scaled kaiming uniform code:
+    # fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
+    # bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    # nn.init.uniform_(self.fc1.weight, -init_scale*bound, init_scale*bound)
+    #
+    # fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.out.weight)
+    # bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+    # nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
 
-    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.out.weight)
-    bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-    nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
+    # scaled kaiming normal code:
+    leaky_neg_slope = 0.
+    fan = nn.init._calculate_correct_fan(self.fc1.weight, "fan_in")
+    gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
+    std = gain/math.sqrt(fan)
+    nn.init.normal_(self.fc1.weight, mean=0.0, std=init_scale*std)
+
+    fan = nn.init._calculate_correct_fan(self.out.weight, "fan_in")
+    gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
+    std = gain/math.sqrt(fan)
+    nn.init.normal_(self.out.weight, mean=0.0, std=init_scale*std)
 
     self.init_w0 = self.fc1.weight.detach().clone().T
 
