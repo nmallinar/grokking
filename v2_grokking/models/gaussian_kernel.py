@@ -36,7 +36,7 @@ def gaussian(samples, centers, bandwidth, return_dist=False):
     return kernel_mat
 
 def gaussian_M(samples, centers, bandwidth, M, return_dist=False):
-    assert bandwidth > 0
+    # assert bandwidth > 0
     kernel_mat = euclidean_distances_M(samples, centers, M, squared=True)
 
     if return_dist:
@@ -52,7 +52,8 @@ def gaussian_M(samples, centers, bandwidth, M, return_dist=False):
 
     return kernel_mat
 
-def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None):
+def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None,
+              agop_power=0.5, agip_power=1.0, return_per_class_agop=False):
     M = 0.
 
     if x is None:
@@ -97,6 +98,7 @@ def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None):
 
     bs = batch_size
     batches = torch.split(G, bs)
+
     for i in range(len(batches)):
     # for i in tqdm(range(len(batches))):
         # grad = batches[i].cuda()
@@ -107,18 +109,61 @@ def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None):
         del grad, gradT
     torch.cuda.empty_cache()
     M /= len(G)
-    M = np.real(scipy.linalg.sqrtm(M.numpy()))
-
     Mc /= len(G)
-    # Mc = np.real(scipy.linalg.sqrtm(Mc.numpy()))
-    Mc = Mc.numpy()
+
+    per_class_agops = []
+    if return_per_class_agop:
+        for i in range(len(batches)):
+            for class_i in range(G.shape[1]):
+                if len(per_class_agops) < G.shape[1]:
+                    per_class_agops.append(batches[i][:,class_i].T @ batches[i][:,class_i])
+                else:
+                    per_class_agops[class_i] += batches[i][:,class_i].T @ batches[i][:,class_i]
+        for class_i in range(G.shape[1]):
+            per_class_agops[class_i] /= len(G)
+            per_class_agops[class_i] = torch.from_numpy(np.real(scipy.linalg.sqrtm(per_class_agops[class_i].numpy())))
+
+    if agop_power == 0.5:
+        M = np.real(scipy.linalg.sqrtm(M.numpy()))
+    elif agop_power == 0.25:
+        M = np.real(scipy.linalg.sqrtm(np.real(scipy.linalg.sqrtm(M.numpy()))))
+    elif agop_power.is_integer():
+        if agop_power == 1:
+            M = M.numpy()
+        else:
+            M = np.real(np.linalg.matrix_power(M.numpy(), int(agop_power)))
+    else:
+        eigs, vecs = np.linalg.eigh(M.numpy())
+        eigs = np.power(eigs, agop_power)
+        eigs[np.isnan(eigs)] = 0.0
+        M = vecs @ np.diag(eigs) @ vecs.T
+
+    if agip_power == 0.5:
+        Mc = np.real(scipy.linalg.sqrtm(Mc.numpy()))
+    elif agip_power.is_integer():
+        if agip_power == -1:
+            Mc = np.linalg.pinv(Mc.numpy())
+        else:
+            Mc = np.real(np.linalg.matrix_power(Mc.numpy(), int(agip_power)))
+    else:
+        eigs, vecs = np.linalg.eigh(Mc.numpy())
+        eigs = np.power(eigs, agip_power)
+        eigs[np.isnan(eigs)] = 0.0
+        Mc = vecs @ np.diag(eigs) @ vecs.T
 
     # return M, torch.tensor(Mc)
-    return torch.from_numpy(M), torch.from_numpy(Mc)
+    if return_per_class_agop:
+        return torch.from_numpy(M), torch.from_numpy(Mc), per_class_agops
+
+    M = torch.from_numpy(M)
+    # M -= torch.diag(torch.diag(M))
+    return M, torch.from_numpy(Mc)
 
 def gaussian_M_update(samples, centers, bandwidth, M, weights, K=None, \
-                      centers_bsize=-1, centering=False):
-    return get_grads(samples, weights.T, bandwidth, M, K=K, centering=centering, x=centers)
+                      centers_bsize=-1, centering=False, agop_power=0.5,
+                      agip_power=1.0, return_per_class_agop=False):
+    return get_grads(samples, weights.T, bandwidth, M, K=K, centering=centering, x=centers,
+                     agop_power=agop_power, agip_power=agip_power, return_per_class_agop=return_per_class_agop)
 
 def get_jac_reg(samples, centers, bandwidth, M, K=None, \
                 centering=False):
@@ -134,16 +179,24 @@ def get_jac_reg(samples, centers, bandwidth, M, K=None, \
     if K is None:
         K = gaussian_M(samples, centers, bandwidth, M)
 
+    n, d = samples.shape
+
     # samples: n x d, centers: m x d
     samples = samples.unsqueeze(0)
     centers = centers.unsqueeze(1)
+
 
     # all_diffs: n x m x d
     all_diffs = samples - centers
     del samples, centers
 
     all_diffs = all_diffs @ M
-    all_diffs /= (2*(bandwidth**2))
+    all_diffs /= (bandwidth**2)
+
+    KDM = (K.unsqueeze(2) * all_diffs).reshape(n, n*d)
+    # appears to have max value ~ p^2 / 100
+    G_test = KDM @ KDM.T
+    return G_test
 
     K = K.unsqueeze(1) * K.unsqueeze(2)
 
@@ -157,4 +210,7 @@ def get_jac_reg(samples, centers, bandwidth, M, K=None, \
         # check that prod: (32, n, n) and K[idx:idx+32]: (32, n, n)
         G += torch.sum(prod * K[idx:idx + 32], dim=0)
 
-    return G / all_diffs.shape[0]
+
+    import ipdb; ipdb.set_trace()
+
+    return G

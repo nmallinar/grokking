@@ -18,11 +18,11 @@ from torch.func import jacrev
 from rfm import main as rfm_main
 from inf_ntk import ntk_fn, jax_ntk_fn, get_jax_ntk_fn
 
-torch.manual_seed(34)
-import random
-random.seed(23)
-np.random.seed(234)
-torch.set_default_dtype(torch.float32)
+# torch.manual_seed(34)
+# import random
+# random.seed(23)
+# np.random.seed(234)
+# torch.set_default_dtype(torch.float32)
 
 kernel_fn = get_jax_ntk_fn(depth=2, bias=0)
 
@@ -56,8 +56,7 @@ def main(args: dict):
     wandb.define_metric("validation/accuracy", step_metric='epoch')
     wandb.define_metric("validation/loss", step_metric='epoch')
 
-    # num_tokens = config.num_tokens
-    num_tokens = config.prime
+    num_tokens = config.num_tokens
 
     train_loader, agop_loader, val_loader, val_loader1, context_len, train_dataset, val_dataset, base_train_feats, base_train_labels, base_val_feats, base_val_labels = \
         get_augmented_data_with_agop_loader(
@@ -68,18 +67,6 @@ def main(args: dict):
             config.batch_size,
             config.agop_subsample_n
         )
-
-    base_train_feats = F.one_hot(base_train_feats, num_tokens).view(base_train_feats.size(0), -1).numpy()
-    base_val_feats = F.one_hot(base_val_feats, num_tokens).view(base_val_feats.size(0), -1).numpy()
-    base_train_labels = F.one_hot(base_train_labels, config.prime).numpy()
-    base_val_labels = F.one_hot(base_val_labels, config.prime).numpy()
-    print(base_train_feats.shape)
-    print(base_val_feats.shape)
-
-    np.save(os.path.join(out_dir, f'base_train_data.npy'), base_train_feats)
-    np.save(os.path.join(out_dir, f'base_train_labels.npy'), base_train_labels)
-    np.save(os.path.join(out_dir, f'base_val_data.npy'), base_val_feats)
-    np.save(os.path.join(out_dir, f'base_val_labels.npy'), base_val_labels)
 
     embedding_layer = None
     if config.model == 'TwoLayerFCN':
@@ -153,14 +140,14 @@ def main(args: dict):
     num_epochs = config.num_steps
     # num_epochs = ceil(config.num_steps / len(train_loader))
 
-    log_freq = 500
+    log_freq = 1000
 
     if embedding_layer is not None:
         np.save(os.path.join(out_dir, f'embedding_layer.npy'), embedding_layer.state_dict()['weight'].detach().cpu().numpy())
 
     for epoch in tqdm(range(num_epochs)):
         final_agops, final_left_agops, final_agips, final_left_agips = train(model, train_loader, agop_loader, optimizer, scheduler, device,
-              config.num_steps, num_tokens, args.loss, config, epoch,
+              config.num_steps, num_tokens, args.loss, config,
               embedding_layer=embedding_layer,
               agop_weight=config.agop_weight)
 
@@ -173,9 +160,8 @@ def main(args: dict):
 
             #print(f'Epoch {epoch}:\t Train Acc: {train_acc}\t Total Val Acc: {val_acc}\t Val Acc (n <= p): {val_acc1}')
 
-            if not args.skip_agop_comps and (epoch % log_freq == 0):
-                if epoch % log_freq == 0:
-                    visual_weights(model, epoch)
+            if not args.skip_agop_comps and epoch % log_freq == 0:
+                visual_weights(model, epoch)
 
                 if final_agops is None:
                     with torch.no_grad():
@@ -253,6 +239,7 @@ def main(args: dict):
                 if epoch % log_freq == 0:
                     ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
                     os.makedirs(ep_out_dir, exist_ok=True)
+
                     nfm = model.fc1.weight.t() @ model.fc1.weight
                     np.save(os.path.join(ep_out_dir, f'right_nfm.npy'), nfm.detach().cpu().numpy())
 
@@ -264,35 +251,6 @@ def main(args: dict):
                         np.save(os.path.join(ep_out_dir, f'sqrt_right_agop_{idx}.npy'), final_sqrt_agops[idx])
                         np.save(os.path.join(ep_out_dir, f'left_agop_{idx}.npy'), final_left_agops[idx])
                         np.save(os.path.join(ep_out_dir, f'sqrt_left_agop_{idx}.npy'), final_sqrt_left_agops[idx])
-
-
-            if epoch % log_freq == 0:
-                ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
-                syn_data_dir = os.path.join(ep_out_dir, 'synthetic_data')
-                os.makedirs(syn_data_dir, exist_ok=True)
-
-                # flat covariance
-                cov = torch.tensor([1.0 for eig_i in range(num_tokens*2)])
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
-
-                np.save(os.path.join(syn_data_dir, f'flat_synthetic_data.npy'), data.numpy())
-                np.save(os.path.join(syn_data_dir, f'flat_synthetic_labels.npy'), labels.numpy())
-
-                # spiked covariance
-                cov[-2:] = 1e-8
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
-                np.save(os.path.join(syn_data_dir, f'minus2_synthetic_data.npy'), data.numpy())
-                np.save(os.path.join(syn_data_dir, f'minus2_synthetic_labels.npy'), labels.numpy())
-
-                cov[-4:] = 1e-8
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
-                np.save(os.path.join(syn_data_dir, f'minus4_synthetic_data.npy'), data.numpy())
-                np.save(os.path.join(syn_data_dir, f'minus4_synthetic_labels.npy'), labels.numpy())
-
-                cov[-6:] = 1e-8
-                data, labels = get_synthetic_data(model, config, num_tokens, embedding_layer=embedding_layer, n_points=1000000, cov=torch.diag(cov))
-                np.save(os.path.join(syn_data_dir, f'minus6_synthetic_data.npy'), data.numpy())
-                np.save(os.path.join(syn_data_dir, f'minus6_synthetic_labels.npy'), labels.numpy())
 
                 if val_acc == 1.0:
                     # can save less frequently once we generalize
@@ -535,7 +493,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
     return agops, left_agops, agips, left_agips
 
 def train(model, train_loader, agop_loader, optimizer, scheduler,
-          device, num_steps, num_tokens, loss_arg, config, epoch,
+          device, num_steps, num_tokens, loss_arg, config,
           embedding_layer=None, agop_weight=0.0):
 
     n_classes = config.prime
@@ -548,7 +506,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         criterion = torch.nn.CrossEntropyLoss()
 
     # Loop over each batch from the training set
-    for batch_idx, batch in enumerate(train_loader):
+    for batch in train_loader:
         # Copy data to device if needed
         batch = tuple(t.to(device) for t in batch)
 
@@ -564,7 +522,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
             inputs = inputs.view(inputs.size(0), -1)
 
 
-        if not config.skip_agop_comps and epoch % 1 == 0 and batch_idx == 0 or (agop_weight > 0):
+        if not config.skip_agop_comps:
             final_agops, final_left_agops, final_agips, final_left_agips = calc_full_agops(model, agop_loader, config, num_tokens, embedding_layer=None)
             # dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
             # dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
@@ -591,7 +549,7 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         # Backward pass
         mse_loss = loss.clone()
 
-        if not config.skip_agop_comps and epoch % 1 == 0 and batch_idx == 0 or (agop_weight > 0):
+        if not config.skip_agop_comps:
             agop_tr = 0.0
             left_agop_tr = 0.0
             for idx in range(len(final_agops)):
@@ -607,42 +565,29 @@ def train(model, train_loader, agop_loader, optimizer, scheduler,
         weight_norm_fc1 = torch.linalg.norm(model.fc1.weight.data).detach()
         weight_norm_out = torch.linalg.norm(model.out.weight.data).detach()
 
-        #loss += weight_norm_fc1
         loss.backward()
 
         # Update weights
         optimizer.step()
         # scheduler.step()
 
-        if not config.skip_agop_comps and epoch % 1 == 0 and batch_idx == 0 or (agop_weight > 0):
-            metrics = {
-                "training/accuracy": acc,
-                "training/loss": loss,
-                "training/mse_loss": mse_loss,
-                "training/agop_tr": agop_tr,
-                "training/left_agop_tr": left_agop_tr,
-                "training/weight_norm_fc1": weight_norm_fc1,
-                "training/weight_norm_out": weight_norm_out,
-                "step": wandb.run.step
-            }
-        else:
-            metrics = {
-                "training/accuracy": acc,
-                "training/loss": loss,
-                "training/mse_loss": mse_loss,
-                # "training/agop_tr": agop_tr,
-                # "training/left_agop_tr": left_agop_tr,
-                "training/weight_norm_fc1": weight_norm_fc1,
-                "training/weight_norm_out": weight_norm_out,
-                "step": wandb.run.step
-            }
+        metrics = {
+            "training/accuracy": acc,
+            "training/loss": loss,
+            "training/mse_loss": mse_loss,
+            "training/agop_tr": agop_tr,
+            "training/left_agop_tr": left_agop_tr,
+            "training/weight_norm_fc1": weight_norm_fc1,
+            "training/weight_norm_out": weight_norm_out,
+            "step": wandb.run.step
+        }
         wandb.log(metrics)
 
         # Finish training at maximum gradient updates
         # if wandb.run.step * len(train_loader) == num_steps:
         #     return
 
-    if not config.skip_agop_comps and epoch % 100 == 0:
+    if not config.skip_agop_comps:
         return final_agops, final_left_agops, final_agips, final_left_agips
     else:
         return None, None, None, None

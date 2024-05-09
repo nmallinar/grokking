@@ -2,6 +2,8 @@ wandb/
 venv/
 grokking/data/
 grokking_outputs/
+*.zip
+*.npy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

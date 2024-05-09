@@ -14,6 +14,7 @@ def ntk_relu(X, Z, depth=1, bias=0., M=None):
     bias (float): (default=0.)
     """
     if M is not None:
+        sqrtM = torch.tensor(np.real(sqrtm(M)))
         X = X @ M
         Z = Z @ M
 
@@ -42,13 +43,13 @@ def ntk_relu_M_update(alphas, centers, samples, M, ntk_depth=1):
 
     def get_solo_grads(sol, X, x):
         if M_is_passed:
-            X_M = X@sqrtM
+            X_M = X@M
         else:
             X_M = X
 
         def egop_fn(z):
             if M_is_passed:
-                z_ = z@sqrtM
+                z_ = z@M
             else:
                 z_ = z
             K = ntk_relu(z_, X_M, M=None, depth=ntk_depth)
@@ -64,13 +65,19 @@ def ntk_relu_M_update(alphas, centers, samples, M, ntk_depth=1):
     train_batches = torch.split(torch.arange(n), chunk)
 
     egop = 0
+    egip = 0
     G = 0
     for btrain in train_batches:
         G += get_solo_grads(alphas[btrain,:], centers[btrain], samples)
-    G = G.reshape(-1, d)
-    egop += G.T @ G/s
+    c = G.shape[1]
 
-    return egop
+    Gd = G.reshape(-1, d)
+    egop += Gd.T @ Gd/s
+
+    egip_fake = torch.zeros((c, c))
+
+    return torch.from_numpy(np.real(sqrtm(egop))), egip_fake
+    return egop, egip_fake
 
 def get_jacs(centers, samples, ntk_depth, M=None):
     if M is not None:
