@@ -17,7 +17,7 @@
 #SBATCH --no-requeue     # dont automatically requeue job id node fails, usually errors need to be inspected and debugged
 
 #source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
-source ~/envs/torch_and_jax2/bin/activate
+source ~/envs/torch_jax2/bin/activate
 
 for i in $(seq 1 1);
 do
@@ -36,6 +36,5 @@ do
     --learning_rate 1e-3 \
     --weight_decay 0.0 \
     --momentum 0.0 \
-    --group_key 'test' \
-    --wandb_offline
+    --group_key 'test' 
 done

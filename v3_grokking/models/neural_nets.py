@@ -84,7 +84,7 @@ class OneLayerFCN(torch.nn.Module):
       x = self.out(x) + dumb2 + dumb4 @ self.out.weight.t()
       return x
 
- class TwoLayerFCN(torch.nn.Module):
+class TwoLayerFCN(torch.nn.Module):
    def __init__(self, num_tokens: int, hidden_width: int,
                 context_len: int, init_scale=1.0, n_classes=-1):
      super().__init__()
@@ -160,7 +160,7 @@ class OneLayerFCN(torch.nn.Module):
        x = self.out(x) + dumb3 + dumb6 @ self.out.weight.t()
        return x
 
- class FourLayerFCN(torch.nn.Module):
+class FourLayerFCN(torch.nn.Module):
    def __init__(self, num_tokens: int, hidden_width: int,
                 context_len: int, init_scale=1.0, n_classes=-1):
      super().__init__()

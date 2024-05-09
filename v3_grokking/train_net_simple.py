@@ -73,7 +73,7 @@ def main():
         context_len=2,
         init_scale=args.init_scale,
         n_classes=args.prime
-    ).to(device)
+    ).to(args.device)
 
 
     # optimizer = torch.optim.SGD(
@@ -95,7 +95,7 @@ def main():
 
         model.train()
         for idx, batch in enumerate(train_loader):
-            batch = tuple(t.to(config.device) for t in batch)
+            batch = tuple(t.to(args.device) for t in batch)
             inputs, labels = batch
 
             optimizer.zero_grad()
@@ -122,7 +122,7 @@ def main():
             total_loss = 0
             total = 0
             for idx, batch in enumerate(test_loader):
-                batch = tuple(t.to(config.device) for t in batch)
+                batch = tuple(t.to(args.device) for t in batch)
                 inputs, labels = batch
 
                 optimizer.zero_grad()
@@ -136,8 +136,12 @@ def main():
             total_loss /= total
             acc = count / total
 
+            #print(f'Epoch {epoch}:\tacc: {acc}\tloss: {loss}')
             wandb.log({
                 'validation/accuracy': acc,
                 'validation/loss': total_loss,
                 'epoch': epoch
             }, step=global_step)
+
+if __name__=='__main__':
+    main()
