@@ -15,9 +15,9 @@ import utils
 import matplotlib.pyplot as plt
 
 torch.set_default_dtype(torch.float64)
-# torch.manual_seed(3143)
-# random.seed(253)
-# np.random.seed(1145)
+torch.manual_seed(3143)
+random.seed(253)
+np.random.seed(1145)
 
 def eval(sol, K, y_onehot):
     preds = K.T @ sol
@@ -26,6 +26,9 @@ def eval(sol, K, y_onehot):
     corr = 0
     if y_onehot.shape[1] > 1:
         count = torch.sum(y_onehot.argmax(-1) == preds.argmax(-1))
+        acc = count / y_onehot.shape[0]
+    elif y_onehot.shape[1] == 1 or len(y_onehot.shape) == 1:
+        count = torch.sum((y_onehot > 0.5) == (preds > 0.5))
         acc = count / y_onehot.shape[0]
     else:
         acc = 0.0
@@ -157,8 +160,11 @@ def main():
 
     X_tr = F.one_hot(X_tr, args.prime).view(-1, 2*args.prime).double()
     y_tr_onehot = F.one_hot(y_tr, args.prime).double()
+    # y_tr_onehot = y_tr.view(-1, 1).double()
+
     X_te = F.one_hot(X_te, args.prime).view(-1, 2*args.prime).double()
     y_te_onehot = F.one_hot(y_te, args.prime).double()
+    # y_te_onehot = y_te.view(-1, 1).double()
 
     class_covariance = compute_train_class_freqs(y_tr_onehot)
 
@@ -212,6 +218,7 @@ def main():
 
             M = torch.mean(torch.stack(Ms), dim=0)
             Mc = torch.mean(torch.stack(Mcs), dim=0)
+
 
         with torch.no_grad():
             wandb.log({

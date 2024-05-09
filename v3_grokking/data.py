@@ -72,14 +72,18 @@ def operation_mod_p_data(operation: str, p: int):
     inputs = torch.stack([x, y], dim=1)
     # inputs = torch.stack([x, op, y, eq], dim=1)
     labels = results
+    # # labels[labels!=3] = -(1./19)
+    # # labels[labels==3] = (18./19)
+    # labels[labels!=3] = 0
+    # labels[labels==3] = 1
 
     return inputs, labels
 
 def make_data_splits(inputs, labels, training_fraction):
     train_size = int(training_fraction * inputs.shape[0])
     val_size = inputs.shape[0] - train_size
-    X_tr, X_te, y_tr, y_te = train_test_split(inputs, labels, test_size=val_size, stratify=labels)
-    return X_tr, y_tr, X_te, y_te
+    # X_tr, X_te, y_tr, y_te = train_test_split(inputs, labels, test_size=val_size, stratify=labels)
+    # return X_tr, y_tr, X_te, y_te
 
     perm = torch.randperm(inputs.shape[0])
     train_idx = perm[:train_size]

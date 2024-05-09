@@ -18,23 +18,22 @@
 
 #source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
 
-for i in $(seq 1 20);
+for i in $(seq 1 1);
 do
   python train_kernel.py \
-    --wandb_proj_name "apr13_grok" \
-    --out_dir "./" \
+    --wandb_proj_name "may8_binary_train" \
+    --out_dir "./wandb" \
     --operation "x+y" \
-    --prime 19 \
+    --prime 31 \
     --training_fraction 0.5 \
     --kernel_type "gaussian" \
-    --iters 500 \
-    --ridge 0.0 \
+    --iters 200 \
+    --ridge 1e-4 \
     --bandwidth 2.5 \
-    --agop_sma_size 10 \
+    --agop_sma_size 1 \
     --agop_power 0.5 \
     --jac_reg_weight 0.0 \
     --agip_rdx_weight 0.0 \
     --group_key 'test' \
-    --wandb_offline \
-    --use_k_inv
+    --wandb_offline
 done
