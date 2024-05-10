@@ -21,13 +21,21 @@ import matplotlib.pyplot as plt
 #     all_labels = torch.cat(all_labels).numpy()
 #     u_embeddings = mapper.fit_transform(embeddings)
 
-def scatter_umap_embeddings(embeddings, labels, cmap, wandb, caption, wandb_key, global_step):
+def scatter_umap_embeddings(embeddings, labels, wandb, caption, wandb_key, global_step, cmap=None):
     plt.clf()
-    plt.scatter(
-        embeddings[:,0],
-        embeddings[:,1],
-        c=[cmap(x) for x in labels]
-    )
+    
+    if cmap is not None:
+        plt.scatter(
+            embeddings[:,0],
+            embeddings[:,1],
+            c=[cmap(x) for x in labels]
+        )
+    else:
+        plt.scatter(
+            embeddings[:,0],
+            embeddings[:,1]
+        )
+
     img = wandb.Image(
         plt,
         caption=caption

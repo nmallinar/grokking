@@ -93,11 +93,6 @@ def main():
     )
     criterion = torch.nn.MSELoss()
 
-    if args.viz_umap:
-        mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
-                           metric='euclidean', n_components=2)
-        cmap = utils.generate_colormap(args.prime)
-
     global_step = 0
     for epoch in tqdm(range(args.epochs)):
 
@@ -154,36 +149,53 @@ def main():
                 'epoch': epoch
             }, step=global_step)
 
-            if args.viz_umap and epoch % 50 == 0:
-                embeddings = []
-                all_labels = []
-                for idx, batch in enumerate(train_loader):
-                    batch = tuple(t.to(args.device) for t in batch)
-                    inputs, labels = batch
+            if args.viz_umap and epoch % 20 == 0:
+                mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
+                                   metric='euclidean', n_components=2)
+                cmap = utils.generate_colormap(args.prime)
 
-                    hid = model(inputs, act=args.act_fn, return_layer='lin1')
-                    embeddings.append(hid.detach().cpu())
-                    all_labels.append(labels.detach().cpu())
+                w1 = model.fc1.weight.data.detach().cpu().numpy()
+                embeddings = mapper.fit_transform(w1)
+                utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, w1: (h, d)', 'umap/w1_hxd', global_step)
+                embeddings = mapper.fit_transform(w1.T)
+                utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, w1: (d, h)', 'umap/w1_dxh', global_step)
 
-                embeddings = torch.cat(embeddings, dim=0).numpy()
-                all_labels = torch.cat(all_labels, dim=0).argmax(-1).numpy()
-                u_embeddings = mapper.fit_transform(embeddings)
-                utils.scatter_umap_embeddings(u_embeddings, all_labels, cmap, wandb, 'Train UMAP', 'umap/train', global_step)
+                U, S, Vh = np.linalg.svd(w1, full_matrices=False)
+                embeddings = mapper.fit_transform(U)
+                utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U', 'umap/U', global_step)
+                embeddings = mapper.fit_transform(U.T)
+                utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U.T', 'umap/U.T', global_step)
 
-                embeddings = []
-                all_labels = []
-                for idx, batch in enumerate(test_loader):
-                    batch = tuple(t.to(args.device) for t in batch)
-                    inputs, labels = batch
 
-                    hid = model(inputs, act=args.act_fn, return_layer='lin1')
-                    embeddings.append(hid.detach().cpu())
-                    all_labels.append(labels.detach().cpu())
-
-                embeddings = torch.cat(embeddings, dim=0).numpy()
-                all_labels = torch.cat(all_labels, dim=0).argmax(-1).numpy()
-                u_embeddings = mapper.transform(embeddings)
-                utils.scatter_umap_embeddings(u_embeddings, all_labels, cmap, wandb, 'Test UMAP', 'umap/test', global_step)
+                # embeddings = []
+                # all_labels = []
+                # for idx, batch in enumerate(train_loader):
+                #     batch = tuple(t.to(args.device) for t in batch)
+                #     inputs, labels = batch
+                #
+                #     hid = model(inputs, act=args.act_fn, return_layer='lin1')
+                #     embeddings.append(hid.detach().cpu())
+                #     all_labels.append(labels.detach().cpu())
+                #
+                # embeddings = torch.cat(embeddings, dim=0).numpy()
+                # all_labels = torch.cat(all_labels, dim=0).argmax(-1).numpy()
+                # u_embeddings = mapper.fit_transform(embeddings)
+                # utils.scatter_umap_embeddings(u_embeddings, all_labels, wandb, 'Train UMAP', 'umap/train', global_step, cmap=cmap)
+                #
+                # embeddings = []
+                # all_labels = []
+                # for idx, batch in enumerate(test_loader):
+                #     batch = tuple(t.to(args.device) for t in batch)
+                #     inputs, labels = batch
+                #
+                #     hid = model(inputs, act=args.act_fn, return_layer='lin1')
+                #     embeddings.append(hid.detach().cpu())
+                #     all_labels.append(labels.detach().cpu())
+                #
+                # embeddings = torch.cat(embeddings, dim=0).numpy()
+                # all_labels = torch.cat(all_labels, dim=0).argmax(-1).numpy()
+                # u_embeddings = mapper.transform(embeddings)
+                # utils.scatter_umap_embeddings(u_embeddings, all_labels, wandb, 'Test UMAP', 'umap/test', global_step, cmap=cmap)
 
         nfm = model.fc1.weight.data.T @ model.fc1.weight.data
         nfm = nfm.detach().cpu().numpy()
