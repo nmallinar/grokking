@@ -43,15 +43,23 @@ class OneLayerFCN(torch.nn.Module):
 
     # scaled kaiming normal code:
     leaky_neg_slope = 0.
-    fan = nn.init._calculate_correct_fan(self.fc1.weight, "fan_in")
-    gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
-    std = gain/math.sqrt(fan)
-    nn.init.normal_(self.fc1.weight, mean=0.0, std=init_scale*std)
+    #fan = nn.init._calculate_correct_fan(self.fc1.weight, "fan_in")
+    #gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
+    #std = gain/math.sqrt(fan)
+    #nn.init.normal_(self.fc1.weight, mean=0.0, std=init_scale*std)
 
     fan = nn.init._calculate_correct_fan(self.out.weight, "fan_in")
     gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
     std = gain/math.sqrt(fan)
     nn.init.normal_(self.out.weight, mean=0.0, std=init_scale*std)
+
+    nfm = torch.from_numpy(np.load('nfm_scale1e-4.npy')).double()
+    dist = torch.distributions.multivariate_normal.MultivariateNormal(
+        torch.zeros(self.fc1.weight.shape[1]),
+        nfm
+    )
+    self.fc1.weight.data = dist.sample_n(self.fc1.weight.shape[0])
+    self.fc1.requires_grad_(False)
 
     self.init_w0 = self.fc1.weight.detach().clone().T
 
@@ -74,6 +82,8 @@ class OneLayerFCN(torch.nn.Module):
           act_fn = F.softplus
       elif act == 'linear':
           act_fn = lambda x: x
+      elif act == 'hermite2':
+          act_fn = lambda x: (torch.pow(x, 2) - 1)/math.sqrt(2)
 
       if dumb1 is None:
           if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
