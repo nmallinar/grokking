@@ -149,7 +149,7 @@ def main():
                 'epoch': epoch
             }, step=global_step)
 
-            if args.viz_umap and epoch % 20 == 0:
+            if args.viz_umap and epoch % 50 == 0:
                 mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
                                    metric='euclidean', n_components=2)
                 cmap = utils.generate_colormap(args.prime)
