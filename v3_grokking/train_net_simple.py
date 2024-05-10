@@ -144,7 +144,7 @@ def main():
             acc = count / total
 
             if acc == 1.0:
-                nfm = model.fc1.weight.data.T @ model.fc1
+                nfm = model.fc1.weight.data.T @ model.fc1.weight.data
                 np.save('nfm.npy', nfm.detach().cpu().numpy())
 
             #print(f'Epoch {epoch}:\tacc: {acc}\tloss: {loss}')
@@ -185,7 +185,7 @@ def main():
                 u_embeddings = mapper.transform(embeddings)
                 utils.scatter_umap_embeddings(u_embeddings, all_labels, cmap, wandb, 'Test UMAP', 'umap/test', global_step)
 
-        nfm = model.fc1.weight.data.T @ model.fc1
+        nfm = model.fc1.weight.data.T @ model.fc1.weight.data
         nfm = nfm.detach().cpu().numpy()
         plt.clf()
         plt.imshow(nfm)

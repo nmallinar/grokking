@@ -22,10 +22,10 @@ source ~/envs/torch_jax2/bin/activate
 for i in $(seq 1 1);
 do
   python train_net_simple.py \
-    --wandb_proj_name "may8_network" \
+    --wandb_proj_name "may9_net_umap" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
     --operation "x+y" \
-    --prime 61 \
+    --prime 31 \
     --training_fraction 0.5 \
     --batch_size 32 \
     --device "cuda" \
