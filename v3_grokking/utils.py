@@ -4,7 +4,7 @@ import math
 import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib.cm import hsv
-from matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 # def get_umap_embeddings(loader, model, mapper, args, is_train=True):
 #     embeddings = []
@@ -26,7 +26,7 @@ def scatter_umap_embeddings(embeddings, labels, cmap, wandb, caption, wandb_key,
     plt.scatter(
         embeddings[:,0],
         embeddings[:,1],
-        c=[cmap[x] for x in labels]
+        c=[cmap(x) for x in labels]
     )
     img = wandb.Image(
         plt,

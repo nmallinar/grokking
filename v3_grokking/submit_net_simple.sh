@@ -25,13 +25,13 @@ do
     --wandb_proj_name "may9_net_umap" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
     --operation "x+y" \
-    --prime 31 \
+    --prime 61 \
     --training_fraction 0.5 \
     --batch_size 32 \
     --device "cuda" \
     --epochs 1000 \
-    --hidden_width 256 \
-    --init_scale 1.0 \
+    --hidden_width 2048 \
+    --init_scale 1e-4 \
     --act_fn "relu" \
     --learning_rate 1e-3 \
     --weight_decay 0.0 \

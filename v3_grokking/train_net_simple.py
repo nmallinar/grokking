@@ -154,7 +154,7 @@ def main():
                 'epoch': epoch
             }, step=global_step)
 
-            if args.viz_umap:
+            if args.viz_umap and epoch % 50 == 0:
                 embeddings = []
                 all_labels = []
                 for idx, batch in enumerate(train_loader):
@@ -166,7 +166,7 @@ def main():
                     all_labels.append(labels.detach().cpu())
 
                 embeddings = torch.cat(embeddings, dim=0).numpy()
-                all_labels = torch.cat(all_labels).numpy()
+                all_labels = torch.cat(all_labels, dim=0).argmax(-1).numpy()
                 u_embeddings = mapper.fit_transform(embeddings)
                 utils.scatter_umap_embeddings(u_embeddings, all_labels, cmap, wandb, 'Train UMAP', 'umap/train', global_step)
 
@@ -181,7 +181,7 @@ def main():
                     all_labels.append(labels.detach().cpu())
 
                 embeddings = torch.cat(embeddings, dim=0).numpy()
-                all_labels = torch.cat(all_labels).numpy()
+                all_labels = torch.cat(all_labels, dim=0).argmax(-1).numpy()
                 u_embeddings = mapper.transform(embeddings)
                 utils.scatter_umap_embeddings(u_embeddings, all_labels, cmap, wandb, 'Test UMAP', 'umap/test', global_step)
 
