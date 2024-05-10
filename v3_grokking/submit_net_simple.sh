@@ -36,5 +36,6 @@ do
     --learning_rate 1e-3 \
     --weight_decay 0.0 \
     --momentum 0.0 \
-    --group_key 'test' 
+    --group_key 'test' \
+    --viz_umap
 done
