@@ -8,6 +8,7 @@ import numpy as np
 import scipy
 import random
 from tqdm import tqdm
+import umap
 
 from data import operation_mod_p_data, make_data_splits, make_dataloader
 from models import neural_nets
@@ -42,6 +43,8 @@ def main():
     parser.add_argument('--learning_rate', default=1e-3, type=float)
     parser.add_argument('--weight_decay', default=0.0, type=float)
     parser.add_argument('--momentum', default=0.0, type=float)
+
+    parser.add_argument('--viz_umap', default=False, action='store_true')
     args = parser.parse_args()
 
     mode = 'online'
@@ -90,6 +93,11 @@ def main():
     )
     criterion = torch.nn.MSELoss()
 
+    if args.viz_umap:
+        mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
+                           metric='euclidean', n_components=2)
+        cmap = utils.generate_colormap(args.prime)
+
     global_step = 0
     for epoch in tqdm(range(args.epochs)):
 
@@ -125,7 +133,6 @@ def main():
                 batch = tuple(t.to(args.device) for t in batch)
                 inputs, labels = batch
 
-                optimizer.zero_grad()
                 output = model(inputs, act=args.act_fn)
 
                 count += (output.argmax(-1) == labels.argmax(-1)).sum()
@@ -146,6 +153,37 @@ def main():
                 'validation/loss': total_loss,
                 'epoch': epoch
             }, step=global_step)
+
+            if args.viz_umap:
+                embeddings = []
+                all_labels = []
+                for idx, batch in enumerate(train_loader):
+                    batch = tuple(t.to(args.device) for t in batch)
+                    inputs, labels = batch
+
+                    hid = model(inputs, act=args.act_fn, return_layer='lin1')
+                    embeddings.append(hid.detach().cpu())
+                    all_labels.append(labels.detach().cpu())
+
+                embeddings = torch.cat(embeddings, dim=0).numpy()
+                all_labels = torch.cat(all_labels).numpy()
+                u_embeddings = mapper.fit_transform(embeddings)
+                utils.scatter_umap_embeddings(u_embeddings, all_labels, cmap, wandb, 'Train UMAP', 'umap/train', global_step)
+
+                embeddings = []
+                all_labels = []
+                for idx, batch in enumerate(test_loader):
+                    batch = tuple(t.to(args.device) for t in batch)
+                    inputs, labels = batch
+
+                    hid = model(inputs, act=args.act_fn, return_layer='lin1')
+                    embeddings.append(hid.detach().cpu())
+                    all_labels.append(labels.detach().cpu())
+
+                embeddings = torch.cat(embeddings, dim=0).numpy()
+                all_labels = torch.cat(all_labels).numpy()
+                u_embeddings = mapper.transform(embeddings)
+                utils.scatter_umap_embeddings(u_embeddings, all_labels, cmap, wandb, 'Test UMAP', 'umap/test', global_step)
 
         nfm = model.fc1.weight.data.T @ model.fc1
         nfm = nfm.detach().cpu().numpy()

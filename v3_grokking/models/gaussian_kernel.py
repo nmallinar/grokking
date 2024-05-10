@@ -96,6 +96,8 @@ def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None,
     if centering:
         G = G - G.mean(0)
 
+
+    # G = torch.concatenate((G[:,0,:].unsqueeze(1), G[:,2:27,:], G[:,28:,:]), dim=1)
     bs = batch_size
     batches = torch.split(G, bs)
 
