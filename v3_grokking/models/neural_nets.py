@@ -53,13 +53,25 @@ class OneLayerFCN(torch.nn.Module):
     std = gain/math.sqrt(fan)
     nn.init.normal_(self.out.weight, mean=0.0, std=init_scale*std)
 
+    #w1 = torch.from_numpy(np.load('outdir/ep_1200_w1.npy')).double()
+    #nfm = w1.T @ w1
     #nfm = torch.from_numpy(np.load('nfm_scale1e-4.npy')).double()
     #dist = torch.distributions.multivariate_normal.MultivariateNormal(
     #    torch.zeros(self.fc1.weight.shape[1]),
     #    nfm
     #)
     #self.fc1.weight.data = dist.sample_n(self.fc1.weight.shape[0])
-    #self.fc1.requires_grad_(False)
+
+    fc1_wvecs = []
+    for idx in range(19):
+        cov = torch.from_numpy(np.load(f'outdir/cluster_covariances/cov_{idx}.npy')).double()
+        dist = torch.distributions.multivariate_normal.MultivariateNormal(
+           torch.zeros(self.fc1.weight.shape[1]),
+           cov
+        )
+        fc1_wvecs.append(dist.sample_n(int(self.fc1.weight.shape[0]/19)))
+    self.fc1.weight.data = torch.concatenate(fc1_wvecs, dim=0)
+    self.fc1.requires_grad_(False)
 
     self.init_w0 = self.fc1.weight.detach().clone().T
 
