@@ -43,10 +43,10 @@ class OneLayerFCN(torch.nn.Module):
 
     # scaled kaiming normal code:
     leaky_neg_slope = 0.
-    fan = nn.init._calculate_correct_fan(self.fc1.weight, "fan_in")
-    gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
-    std = gain/math.sqrt(fan)
-    nn.init.normal_(self.fc1.weight, mean=0.0, std=init_scale*std)
+    #fan = nn.init._calculate_correct_fan(self.fc1.weight, "fan_in")
+    #gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
+    #std = gain/math.sqrt(fan)
+    #nn.init.normal_(self.fc1.weight, mean=0.0, std=init_scale*std)
 
     fan = nn.init._calculate_correct_fan(self.out.weight, "fan_in")
     gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
@@ -62,16 +62,16 @@ class OneLayerFCN(torch.nn.Module):
     #)
     #self.fc1.weight.data = dist.sample_n(self.fc1.weight.shape[0])
 
-    fc1_wvecs = []
-    for idx in range(19):
-        cov = torch.from_numpy(np.load(f'outdir/cluster_covariances/cov_{idx}.npy')).double()
-        dist = torch.distributions.multivariate_normal.MultivariateNormal(
-           torch.zeros(self.fc1.weight.shape[1]),
-           cov
-        )
-        fc1_wvecs.append(dist.sample_n(int(self.fc1.weight.shape[0]/19)))
-    self.fc1.weight.data = torch.concatenate(fc1_wvecs, dim=0)
-    self.fc1.requires_grad_(False)
+    #fc1_wvecs = []
+    #for idx in range(16):
+    #    cov = torch.from_numpy(np.load(f'outdir/cluster_covariances_p31/cov_{idx}.npy')).double()
+    #    dist = torch.distributions.multivariate_normal.MultivariateNormal(
+    #       torch.zeros(self.fc1.weight.shape[1]),
+    #       cov + 1e-12 * torch.eye(self.fc1.weight.shape[1])
+    #    )
+    #    fc1_wvecs.append(dist.sample_n(int(self.fc1.weight.shape[0]/16)))
+    #self.fc1.weight.data = torch.concatenate(fc1_wvecs, dim=0)
+    #self.fc1.requires_grad_(False)
 
     self.init_w0 = self.fc1.weight.detach().clone().T
 

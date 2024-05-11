@@ -149,14 +149,19 @@ def main():
                 'epoch': epoch
             }, step=global_step)
 
-            if args.viz_umap and epoch % 50 == 0:
+            if args.viz_umap and epoch % 200 == 0:
                 mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
                                    metric='euclidean', n_components=2)
                 cmap = utils.generate_colormap(args.prime)
 
                 w1 = model.fc1.weight.data.detach().cpu().numpy()
+                os.makedirs('outdir', exist_ok=True)
+                np.save(os.path.join('outdir', f'ep_{epoch}_w1.npy'), w1)
+
                 embeddings = mapper.fit_transform(w1)
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, w1: (h, d)', 'umap/w1_hxd', global_step)
+                np.save(os.path.join('outdir', f'ep_{epoch}_embs.npy'), embeddings)
+
                 embeddings = mapper.fit_transform(w1.T)
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, w1: (d, h)', 'umap/w1_dxh', global_step)
 
