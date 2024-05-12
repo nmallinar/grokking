@@ -20,8 +20,8 @@
 
 for i in $(seq 1 1);
 do
-  python train_kernel_per_class.py \
-    --wandb_proj_name "may9_per_class_agop" \
+  python train_mixture_kernel.py \
+    --wandb_proj_name "may10_test" \
     --out_dir "./wandb" \
     --operation "x+y" \
     --prime 31 \
@@ -30,10 +30,10 @@ do
     --iters 200 \
     --ridge 1e-4 \
     --bandwidth 2.5 \
-    --agop_sma_size 10 \
+    --agop_sma_size 1 \
     --agop_power 0.5 \
     --jac_reg_weight 0.0 \
     --agip_rdx_weight 0.0 \
     --group_key 'test' \
-    --use_k_inv
+    --wandb_offline
 done

@@ -21,9 +21,33 @@ import matplotlib.pyplot as plt
 #     all_labels = torch.cat(all_labels).numpy()
 #     u_embeddings = mapper.fit_transform(embeddings)
 
+def display_all_agops(agops, per_class_agops, wandb, global_step):
+    plt.clf()
+    sqrt_agop = np.real(scipy.linalg.sqrtm(agops[0].numpy()))
+    plt.imshow(sqrt_agop)
+    plt.colorbar()
+    img = wandb.Image(
+        plt,
+        caption='sqrt(AGOP)'
+    )
+    wandb.log({'sqrt_agop': img}, step=global_step)
+
+    for idx in range(len(per_class_agops)):
+        sqrt_agop = np.real(scipy.linalg.sqrtm(per_class_agops[idx].numpy()))
+        plt.clf()
+        plt.imshow(sqrt_agop)
+        plt.colorbar()
+        img = wandb.Image(
+            plt,
+            caption=f'cls_{idx}, sqrt(AGOP)'
+        )
+        wandb.log({
+            f'per_class_agops/cls_{idx}_sqrt_agop': img
+        }, step=global_step)
+
 def scatter_umap_embeddings(embeddings, labels, wandb, caption, wandb_key, global_step, cmap=None):
     plt.clf()
-    
+
     if cmap is not None:
         plt.scatter(
             embeddings[:,0],

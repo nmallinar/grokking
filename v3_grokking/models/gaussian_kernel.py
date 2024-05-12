@@ -52,6 +52,30 @@ def gaussian_M(samples, centers, bandwidth, M, return_dist=False):
 
     return kernel_mat
 
+def gaussian_mixture(samples, centers, bandwidth, Ms, return_dist=False):
+    kernel_mat = 0.
+    for idx in range(len(Ms)):
+        M1 = torch.from_numpy(np.real(scipy.linalg.sqrtm(Ms[idx])))
+        kernel_mat += euclidean_distances_M(samples, centers, M1, squared=True)
+    # for idx in range(len(Ms)):
+    #     for jdx in range(len(Ms)):
+    #         M1 = torch.from_numpy(np.real(scipy.linalg.sqrtm(Ms[idx])))
+    #         M2 = torch.from_numpy(np.real(scipy.linalg.sqrtm(Ms[jdx])))
+    #         kernel_mat += euclidean_distances_M(samples, centers, M1 @ M2, squared=True)
+
+    if return_dist:
+        dist = kernel_mat.clone()
+
+    kernel_mat.clamp_(min=0)
+    gamma = 1. / (2 * bandwidth ** 2)
+    kernel_mat.mul_(-gamma)
+    kernel_mat.exp_()
+
+    if return_dist:
+        return kernel_mat, dist
+
+    return kernel_mat
+
 def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None,
               agop_power=0.5, agip_power=1.0, return_per_class_agop=False):
     M = 0.

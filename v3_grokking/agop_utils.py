@@ -111,6 +111,7 @@ def calc_full_agops_per_class(model, loader, config):
     final_left_agops = []
     final_agips = []
     final_left_agips = []
+    final_per_class_agops = []
     total_n = 0
     for idx, batch in enumerate(loader):
         # Copy data to device if needed
@@ -121,7 +122,11 @@ def calc_full_agops_per_class(model, loader, config):
         nsamps = inputs.size(0)
         total_n += nsamps
 
-        agops, left_agops, agips, left_agips = calc_batch_agops_per_class(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
+        agops, left_agops, agips, left_agips, per_class_agops = \
+            calc_batch_agops_per_class(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, config.device, config)
+
+        for c_agop in per_class_agops:
+            final_per_class_agops.append(c_agop * nsamps)
 
         for jdx in range(len(agops)):
             if idx == 0:
@@ -140,8 +145,10 @@ def calc_full_agops_per_class(model, loader, config):
         final_left_agops[idx] /= total_n
         final_agips[idx] /= total_n
         final_left_agips[idx] /= total_n
+    for idx in range(len(per_class_agops)):
+        per_class_agops[idx] /= total_n
 
-    return final_agops, final_left_agops, final_agips, final_left_agips
+    return final_agops, final_left_agops, final_agips, final_left_agips, per_class_agops
 
 def calc_batch_agops_per_class(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, device, config):
     # all of these methods work for computing jacobians, they have different
@@ -179,10 +186,19 @@ def calc_batch_agops_per_class(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5,
     left_agops = []
     agips = []
     left_agips = []
+    per_class_agops = []
 
     for idx in range(len(jacs)):
-        import ipdb; ipdb.set_trace()
         cjac = torch.sum(jacs[idx], dim=(2, 3)).reshape(len(inputs), jacs[idx].shape[1])
+
+        if jacs[idx].shape[3] == config.primes*2:
+            classwise_jacs = torch.sum(jacs[idx], dim=2).reshape(len(inputs), -1)
+            for c_idx in range(config.primes):
+                per_class_agops.append(
+                    classwise_jacs[:,c_idx,:].t() @ classwise_jacs[:,c_idx,:] / len(inputs)
+                )
+
+        # jacs[idx] = torch.sum(jacs[idx], dim=2).reshape(len(inputs), -1)
         jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inputs), -1)
 
         agop = jacs[idx].t() @ jacs[idx] / len(inputs)
@@ -195,4 +211,4 @@ def calc_batch_agops_per_class(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5,
             agops.append(agop)
             agips.append(agip)
 
-    return agops, left_agops, agips, left_agips
+    return agops, left_agops, agips, left_agips, per_class_agops

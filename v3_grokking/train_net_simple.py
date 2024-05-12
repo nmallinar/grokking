@@ -153,7 +153,8 @@ def main():
             }, step=global_step)
 
             if args.viz_umap and epoch % 200 == 0:
-                agops, _, _, _ = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
+                agops, _, _, _, per_class_agops = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
+                display_all_agops(agops, per_class_agops, wandb, global_step)
 
                 mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
                                    metric='euclidean', n_components=2)

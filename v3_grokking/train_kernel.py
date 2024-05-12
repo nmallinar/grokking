@@ -9,7 +9,8 @@ import scipy
 import random
 
 from data import operation_mod_p_data, make_data_splits
-from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk
+from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk, \
+                   jax_fcn_relu_ntk, quadratic_kernel
 import utils
 
 import matplotlib.pyplot as plt
@@ -43,6 +44,10 @@ def get_test_kernel(X_tr, X_te, M, bandwidth, ntk_depth, kernel_type):
         K_test = gaussian_kernel.gaussian_M(X_tr, X_te, bandwidth, M)
     elif kernel_type == 'fcn_relu_ntk':
         K_test = torch_fcn_relu_ntk.ntk_relu(X_tr, X_te, depth=ntk_depth, bias=0., M=M)
+    elif kernel_type == 'jax_fcn_ntk':
+        _, K_test = jax_fcn_relu_ntk.ntk_fn(X_tr, X_te, M=M, depth=ntk_depth, bias=0, convert=True)
+    elif kernel_type == 'quadratic':
+        K_test = quadratic_kernel.quadratic_M(X_tr, X_te, M)
 
     return K_test
 
@@ -65,6 +70,14 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
         K_train = torch_fcn_relu_ntk.ntk_relu(X_tr, X_tr, depth=ntk_depth, bias=0., M=M)
         if jac_reg_weight > 0:
             raise Exception('to do')
+    elif kernel_type == 'jax_fcn_ntk':
+        _, K_train = jax_fcn_relu_ntk.ntk_fn(X_tr, X_tr, M=M, depth=ntk_depth, bias=0, convert=True)
+        if jac_reg_weight > 0:
+            jac = jax_fcn_relu_ntk.get_jac_reg(X_tr, X_tr, bandwidth, M, ntk_depth, K=K_train)
+    elif kernel_type == 'quadratic':
+        K_train = quadratic_kernel.quadratic_M(X_tr, X_tr, M)
+        if jac_reg_weight > 0:
+            raise Exception()
 
     if agip_rdx_weight > 0:
         if jac_reg_weight > 0:
@@ -105,6 +118,12 @@ def update(samples, centers, bandwidth, M, weights, K, dist, \
         M, Mc = gaussian_kernel.gaussian_M_update(samples, centers, bandwidth, M, weights, K=K, \
                               centers_bsize=centers_bsize, centering=centering, agop_power=agop_power,
                               agip_power=agip_power)
+    elif kernel_type == 'fcn_relu_ntk':
+        M, Mc = torch_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
+    elif kernel_type == 'jax_fcn_ntk':
+        M, Mc = jax_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
+    elif kernel_type == 'quadratic':
+        M, Mc = quadratic_kernel.quad_M_update(samples, centers, weights.T, M, centering=centering)
 
     return M, Mc
 

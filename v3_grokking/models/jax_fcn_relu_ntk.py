@@ -43,19 +43,6 @@ def ntk_fn(x, y, M=None, depth=2, bias=1, convert=True):
         x = x @ sqrtM
         y = y @ sqrtM
 
-
-    # if kernel_fn is None:
-    #     layers = []
-    #     for _ in range(1, depth):
-    #         layers += [
-    #             stax.Dense(1, W_std=1, b_std=bias),
-    #             # stax.Relu()
-    #             stax.Monomial(2)
-    #         ]
-    #     layers.append(stax.Dense(1, W_std=1, b_std=bias))
-    #
-    #     _, _, kernel_fn = stax.serial(*layers)
-
     ntk_nngp_jax = kernel_fn(x, y)
     nngp_jax = ntk_nngp_jax.nngp
     ntk_jax = ntk_nngp_jax.ntk
@@ -67,6 +54,18 @@ def ntk_fn(x, y, M=None, depth=2, bias=1, convert=True):
         return nngp_jax.double(), ntk_jax.double()
 
     return nngp_jax, ntk_jax
+
+# def ntk_mixture_fn(x, y, Ms, depth=2, bias=1, convert=True):
+#     _Ms = []
+#     if convert:
+#         x = torch2jax(x)
+#         y = torch2jax(y)
+#         for idx in range(len(Ms)):
+#             _Ms.append(torch2jax(Ms[idx]))
+#     else:
+#         _Ms = Ms
+#
+#
 
 def ntk_relu_M_update(alphas, centers, samples, M, ntk_depth=1):
 
@@ -119,6 +118,9 @@ def ntk_relu_M_update(alphas, centers, samples, M, ntk_depth=1):
 
     Gc = G.reshape(-1, c)
     egip += Gc.T @ Gc/s
+
+    # egop += 1e-12 * torch.eye(len(egop))
+    # egip += 1e-12 * torch.eye(len(egip))
 
     egip = np.real(scipy.linalg.sqrtm(egip.numpy()))
     egop = np.real(scipy.linalg.sqrtm(egop.numpy()))

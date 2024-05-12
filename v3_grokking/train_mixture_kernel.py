@@ -9,7 +9,8 @@ import scipy
 import random
 
 from data import operation_mod_p_data, make_data_splits
-from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk
+from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk, \
+                   jax_fcn_relu_ntk, quadratic_kernel
 import utils
 
 import matplotlib.pyplot as plt
@@ -35,19 +36,26 @@ def eval(sol, K, y_onehot):
 
     return acc, loss, corr
 
-def get_test_kernel(X_tr, X_te, M, bandwidth, ntk_depth, kernel_type):
+def get_test_kernel(X_tr, X_te, M, bandwidth, ntk_depth, kernel_type, Ms=None):
     K_test = None
     if kernel_type == 'laplace':
         K_test = laplace_kernel.laplacian_M(X_tr, X_te, bandwidth, M, return_dist=False)
     elif kernel_type == 'gaussian':
         K_test = gaussian_kernel.gaussian_M(X_tr, X_te, bandwidth, M)
+    elif kernel_type == 'gaussian_mixture':
+        K_test = gaussian_kernel.gaussian_mixture(X_tr, X_te, bandwidth, Ms)
     elif kernel_type == 'fcn_relu_ntk':
         K_test = torch_fcn_relu_ntk.ntk_relu(X_tr, X_te, depth=ntk_depth, bias=0., M=M)
+    elif kernel_type == 'jax_fcn_ntk':
+        _, K_test = jax_fcn_relu_ntk.ntk_fn(X_tr, X_te, M=M, depth=ntk_depth, bias=0, convert=True)
+    elif kernel_type == 'quadratic':
+        K_test = quadratic_kernel.quadratic_M(X_tr, X_te, M)
 
     return K_test
 
 def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
-          ridge=1e-3, jac_reg_weight=0.0, agip_rdx_weight=0.0, use_k_inv=True):
+          ridge=1e-3, jac_reg_weight=0.0, agip_rdx_weight=0.0, use_k_inv=True,
+          Ms=None):
 
     K_train = None
     dist = None
@@ -61,10 +69,22 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
         K_train = gaussian_kernel.gaussian_M(X_tr, X_tr, bandwidth, M)
         if jac_reg_weight > 0:
             jac = gaussian_kernel.get_jac_reg(X_tr, X_tr, bandwidth, M, K=K_train)
+    elif kernel_type == 'gaussian_mixture':
+        K_train = gaussian_kernel.gaussian_mixture(X_tr, X_tr, bandwidth, Ms)
+        if jac_reg_weight > 0:
+            raise Exception()
     elif kernel_type == 'fcn_relu_ntk':
         K_train = torch_fcn_relu_ntk.ntk_relu(X_tr, X_tr, depth=ntk_depth, bias=0., M=M)
         if jac_reg_weight > 0:
             raise Exception('to do')
+    elif kernel_type == 'jax_fcn_ntk':
+        _, K_train = jax_fcn_relu_ntk.ntk_fn(X_tr, X_tr, M=M, depth=ntk_depth, bias=0, convert=True)
+        if jac_reg_weight > 0:
+            jac = jax_fcn_relu_ntk.get_jac_reg(X_tr, X_tr, bandwidth, M, ntk_depth, K=K_train)
+    elif kernel_type == 'quadratic':
+        K_train = quadratic_kernel.quadratic_M(X_tr, X_tr, M)
+        if jac_reg_weight > 0:
+            raise Exception()
 
     if agip_rdx_weight > 0:
         if jac_reg_weight > 0:
@@ -97,20 +117,20 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
 
 def update(samples, centers, bandwidth, M, weights, K, dist, \
            kernel_type, centers_bsize=-1, centering=False,
-           agop_power=0.5, agip_power=1.0, return_per_class_agop=False):
+           agop_power=0.5, agip_power=1.0):
     if kernel_type == 'laplace':
         M, Mc = laplace_kernel.laplacian_M_update(samples, centers, bandwidth, M, weights, K=K, dist=dist, \
                                    centers_bsize=centers_bsize, centering=centering)
     elif kernel_type == 'gaussian':
-        if return_per_class_agop:
-            M, Mc, class_agops = gaussian_kernel.gaussian_M_update(samples, centers, bandwidth, M, weights, K=K, \
-                                  centers_bsize=centers_bsize, centering=centering, agop_power=agop_power,
-                                  agip_power=agip_power, return_per_class_agop=True)
-            return M, Mc, class_agops
-
         M, Mc = gaussian_kernel.gaussian_M_update(samples, centers, bandwidth, M, weights, K=K, \
                               centers_bsize=centers_bsize, centering=centering, agop_power=agop_power,
                               agip_power=agip_power)
+    elif kernel_type == 'fcn_relu_ntk':
+        M, Mc = torch_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
+    elif kernel_type == 'jax_fcn_ntk':
+        M, Mc = jax_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
+    elif kernel_type == 'quadratic':
+        M, Mc = quadratic_kernel.quad_M_update(samples, centers, weights.T, M, centering=centering)
 
     return M, Mc
 
@@ -176,6 +196,9 @@ def main():
 
     M = torch.eye(X_tr.shape[1]).double()
     Mc = torch.eye(y_tr_onehot.shape[1]).double()
+    Ms = []
+    for idx in range(16):
+        Ms.append(torch.from_numpy(np.load(f'notebooks/cluster_covariances_p31_relu/cov_{idx}.npy')).double())
 
     Ms = []
     Mcs = []
@@ -183,7 +206,7 @@ def main():
     for rfm_iter in range(args.iters):
         sol, K_train, dist = solve(X_tr, y_tr_onehot, M, Mc, args.bandwidth, args.ntk_depth, args.kernel_type,
                                    ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,
-                                   use_k_inv=args.use_k_inv)
+                                   use_k_inv=args.use_k_inv, Ms=Ms)
 
         acc, loss, corr = eval(sol, K_train, y_tr_onehot)
         print(f'Round {rfm_iter} Train MSE:\t{loss}')
@@ -193,7 +216,7 @@ def main():
             'training/loss': loss
         }, step=rfm_iter)
 
-        K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
+        K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type, Ms=Ms)
 
         acc, loss, corr = eval(sol, K_test, y_te_onehot)
         print(f'Round {rfm_iter} Test MSE:\t{loss}')
@@ -205,38 +228,11 @@ def main():
             'validation/loss': loss
         }, step=rfm_iter)
 
-        M_new, Mc_new, class_agops = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
+        sys.exit(0)
+
+        M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
                        args.kernel_type, centers_bsize=-1, centering=True,
-                       agop_power=args.agop_power, agip_power=args.agip_power,
-                       return_per_class_agop=True)
-
-        k_samps = 100
-        rf_mat = torch.zeros(args.prime, k_samps, args.prime)
-        for class_i in range(args.prime):
-            dist = torch.distributions.multivariate_normal.MultivariateNormal(
-               torch.zeros(args.prime),
-               class_agops[class_i][:31,31:]
-            )
-            rf_mat[class_i] = dist.sample_n(k_samps)
-        rf_mat = rf_mat.view(args.prime*k_samps, args.prime).T
-        import ipdb; ipdb.set_trace()
-        X_tr2 = X_tr.clone() @ rf_mat
-        X_te2 = X_te.clone() @ rf_mat
-        sol, K_train, dist = solve(X_tr2, y_tr_onehot, torch.eye(X_tr2.shape[1]), torch.eye(args.prime),
-                                   args.bandwidth, args.ntk_depth, args.kernel_type,
-                                   ridge=args.ridge, jac_reg_weight=args.jac_reg_weight,
-                                   agip_rdx_weight=args.agip_rdx_weight, use_k_inv=args.use_k_inv)
-        acc, loss, corr = eval(sol, K_train, y_tr_onehot)
-        print(f'RF === Round {rfm_iter} Train MSE:\t{loss}')
-        print(f'RF === Round {rfm_iter} Train Acc:\t{acc}')
-
-        K_test = get_test_kernel(X_tr2, X_te2, torch.eye(X_tr2.shape[1]),
-                                 args.bandwidth, args.ntk_depth, args.kernel_type)
-
-        acc, loss, corr = eval(sol, K_test, y_te_onehot)
-        print(f'RF === Round {rfm_iter} Test MSE:\t{loss}')
-        print(f'RF === Round {rfm_iter} Test Acc:\t{acc}')
-        print()
+                       agop_power=args.agop_power, agip_power=args.agip_power)
 
         if args.use_ema:
             # use exponential moving average
@@ -289,61 +285,6 @@ def main():
                     caption=f'Mc'
                 )
                 wandb.log({'Mc': img}, step=rfm_iter)
-
-                all_sims = torch.zeros(args.prime, args.prime).double()
-                for class_i in range(args.prime):
-                    plt.clf()
-                    plt.imshow(class_agops[class_i])
-                    plt.colorbar()
-                    img = wandb.Image(
-                        plt,
-                        caption=f'M_class_{class_i}'
-                    )
-                    wandb.log({f'per_class/M_class_{class_i}': img}, step=rfm_iter)
-
-                    M_vals = torch.flip(torch.linalg.eigvalsh(class_agops[class_i]), (0,))
-                    plt.clf()
-                    plt.plot(range(len(M_vals)), np.log(M_vals))
-                    plt.grid()
-                    plt.xlabel('eigenvalue idx')
-                    plt.ylabel('ln(eigenvalue)')
-                    plt.yticks(np.arange(0, 20, 0.5)*-1)
-                    plt.ylim(-20.5, 0)
-                    # plt.yticks([0, -0.5, -1, -1.5, -2, -2.5, ])
-                    img = wandb.Image(
-                        plt,
-                        caption='M_eigenvalues_class_{class_i}'
-                    )
-                    wandb.log({f'per_class_eigs/M_eigs_{class_i}': img}, step=rfm_iter)
-
-                    for class_j in range(class_i+1, args.prime):
-                        sim = F.cosine_similarity(class_agops[class_i].flatten(), class_agops[class_j].flatten(), dim=0)
-                        wandb.log({f'sims/class_{class_i}_class_{class_j}': sim}, step=rfm_iter)
-                        all_sims[class_i, class_j] = sim
-
-                all_sims = all_sims + all_sims.T - torch.diag(torch.diag(all_sims))
-                plt.clf()
-                plt.imshow(all_sims)
-                plt.xlabel('class index i')
-                plt.ylabel('class index j')
-                plt.colorbar()
-                img = wandb.Image(
-                    plt,
-                    caption=f'all_sims_heatmap'
-                )
-                wandb.log({'all_sims_heatmap': img}, step=rfm_iter)
-
-                all_sims += torch.eye(args.prime)
-                plt.clf()
-                plt.imshow(all_sims)
-                plt.xlabel('class index i')
-                plt.ylabel('class index j')
-                plt.colorbar()
-                img = wandb.Image(
-                    plt,
-                    caption=f'all_sims_heatmap_with_diag'
-                )
-                wandb.log({'all_sims_heatmap_with_diag': img}, step=rfm_iter)
 
                 M_vals = torch.flip(torch.linalg.eigvalsh(M), (0,))
                 Mc_vals = torch.flip(torch.linalg.eigvalsh(Mc), (0,))
