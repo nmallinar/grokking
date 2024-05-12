@@ -22,18 +22,18 @@ source ~/envs/torch_jax2/bin/activate
 for i in $(seq 1 1);
 do
   python train_net_simple.py \
-    --wandb_proj_name "may10_umap_exps_mult" \
+    --wandb_proj_name "may11_test" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
-    --operation "x*y" \
+    --operation "x+y" \
     --prime 31 \
     --training_fraction 0.5 \
     --batch_size 32 \
     --device "cuda" \
     --epochs 3000 \
     --model "OneLayerFCN" \
-    --hidden_width 2240 \
+    --hidden_width 1024 \
     --init_scale 1e-4 \
-    --act_fn "hermite2" \
+    --act_fn "relu" \
     --learning_rate 1e-3 \
     --weight_decay 1.0 \
     --momentum 0.0 \
