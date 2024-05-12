@@ -30,6 +30,7 @@ do
     --batch_size 32 \
     --device "cuda" \
     --epochs 3000 \
+    --model "OneLayerFCN" \
     --hidden_width 2240 \
     --init_scale 1e-4 \
     --act_fn "hermite2" \

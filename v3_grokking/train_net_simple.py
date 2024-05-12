@@ -37,6 +37,7 @@ def main():
     parser.add_argument('--epochs', default=10000, type=int)
     parser.add_argument('--device', default='cuda', choices={'cuda', 'cpu'})
 
+    parser.add_argument('--model', default='OneLayerFCN')
     parser.add_argument('--hidden_width', default=256, type=int)
     parser.add_argument('--init_scale', default=1.0, type=float)
     parser.add_argument("--act_fn", type=str, default="relu")
