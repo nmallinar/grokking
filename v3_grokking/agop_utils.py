@@ -1,13 +1,13 @@
 import torch
 
 def calc_full_agops(model, loader, config):
-    dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-    dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-    dumb3 = torch.zeros((config.agop_subsample_n, config.prime)).to(config.device)
+    dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    dumb2 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    dumb3 = torch.zeros((config.agop_batch_size, config.prime)).to(config.device)
 
-    dumb4 = torch.zeros((config.agop_subsample_n, model.inp_dim)).to(config.device)
-    dumb5 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-    dumb6 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+    dumb4 = torch.zeros((config.agop_batch_size, model.inp_dim)).to(config.device)
+    dumb5 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    dumb6 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
 
     final_agops = []
     final_left_agops = []
@@ -99,13 +99,13 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
     return agops, left_agops, agips, left_agips
 
 def calc_full_agops_per_class(model, loader, config):
-    dumb1 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-    dumb2 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-    dumb3 = torch.zeros((config.agop_subsample_n, config.prime)).to(config.device)
+    dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    dumb2 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    dumb3 = torch.zeros((config.agop_batch_size, config.prime)).to(config.device)
 
-    dumb4 = torch.zeros((config.agop_subsample_n, model.inp_dim)).to(config.device)
-    dumb5 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
-    dumb6 = torch.zeros((config.agop_subsample_n, model.hidden_width)).to(config.device)
+    dumb4 = torch.zeros((config.agop_batch_size, model.inp_dim)).to(config.device)
+    dumb5 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    dumb6 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
 
     final_agops = []
     final_left_agops = []
