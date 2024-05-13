@@ -45,6 +45,20 @@ def display_all_agops(agops, per_class_agops, wandb, global_step):
             f'per_class_agops/cls_{idx}_sqrt_agop': img
         }, step=global_step)
 
+        vals, _ = np.linalg.eig(sqrt_agop)
+        vals = np.array(sorted(list(vals))[::-1])
+        plt.clf()
+        plt.plot(range(len(vals)), np.log(vals))
+        plt.xlabel('eig idx')
+        plt.ylabel('ln(eigs)')
+        img = wandb.Image(
+            plt,
+            caption=f'cls_{idx}, eigs sqrt(AGOP)'
+        )
+        wandb.log({
+            f'per_class_agops_spectra/cls_{idx}_sqrt_agop': img
+        }, step=global_step)
+
 def scatter_umap_embeddings(embeddings, labels, wandb, caption, wandb_key, global_step, cmap=None):
     plt.clf()
 
