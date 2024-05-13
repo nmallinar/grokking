@@ -28,12 +28,13 @@ do
     --prime 31 \
     --training_fraction 0.5 \
     --batch_size 32 \
+    --agop_batch_size 4 \
     --device "cuda" \
     --epochs 3000 \
     --model "OneLayerFCN" \
     --hidden_width 1024 \
     --init_scale 1e-4 \
-    --act_fn "relu" \
+    --act_fn "hermite2" \
     --learning_rate 1e-3 \
     --weight_decay 1.0 \
     --momentum 0.0 \

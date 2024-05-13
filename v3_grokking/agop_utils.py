@@ -191,15 +191,15 @@ def calc_batch_agops_per_class(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5,
     for idx in range(len(jacs)):
         cjac = torch.sum(jacs[idx], dim=(2, 3)).reshape(len(inputs), jacs[idx].shape[1])
 
-        if jacs[idx].shape[3] == config.primes*2:
-            classwise_jacs = torch.sum(jacs[idx], dim=2).reshape(len(inputs), -1)
-            for c_idx in range(config.primes):
+        if jacs[idx].shape[3] == config.prime*2:
+            classwise_jacs = torch.sum(jacs[idx].detach().cpu(), dim=2)
+            for c_idx in range(config.prime):
                 per_class_agops.append(
                     classwise_jacs[:,c_idx,:].t() @ classwise_jacs[:,c_idx,:] / len(inputs)
                 )
 
         # jacs[idx] = torch.sum(jacs[idx], dim=2).reshape(len(inputs), -1)
-        jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inputs), -1)
+        jacs[idx] = torch.sum(jacs[idx].detach().cpu(), dim=(1, 2)).reshape(len(inputs), -1)
 
         agop = jacs[idx].t() @ jacs[idx] / len(inputs)
         agip = cjac.t() @ cjac / len(inputs)

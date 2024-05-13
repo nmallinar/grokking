@@ -1,6 +1,6 @@
 import torch
 import math
-
+import scipy
 import numpy as np
 from matplotlib.colors import ListedColormap
 from matplotlib.cm import hsv
