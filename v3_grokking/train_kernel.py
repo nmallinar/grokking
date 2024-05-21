@@ -8,7 +8,7 @@ import numpy as np
 import scipy
 import random
 
-from data import operation_mod_p_data, make_data_splits
+from data import operation_mod_p_data, make_data_splits, held_out_op_mod_p_data
 from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk, \
                    jax_fcn_relu_ntk, quadratic_kernel
 import utils
@@ -98,6 +98,17 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
                                                       + jac_reg_weight * jac).numpy())) @ K_train @ y_tr_onehot
         else:
             if use_k_inv:
+                # K_inv = np.linalg.pinv(K_train)
+                # # vals, vecs = np.linalg.eig(y_tr_onehot.T @ y_tr_onehot)
+                # # vecs *= -0.5
+                # # y_cov = vecs.T @ np.diag(vals) @ vecs
+                # # Mc = y_cov @ y_tr_onehot.T.numpy() @ K_inv @ y_tr_onehot.numpy() @ y_cov
+                # # Mc = y_tr_onehot.T.numpy() @ K_inv @ y_tr_onehot.numpy()
+                # # sol = torch.from_numpy(np.linalg.solve(K_train.numpy() + ridge * np.eye(len(K_train)), (y_tr_onehot @ Mc / torch.max(y_tr_onehot @ Mc)).numpy())).T
+                # new_labels = (K_inv @ y_tr_onehot.numpy())
+                # new_labels /= np.max(new_labels)
+                # sol = torch.from_numpy(np.linalg.solve(K_train.numpy() + ridge * np.eye(len(K_train)), new_labels).T)
+
                 sol = torch.from_numpy(np.linalg.solve(K_train.T @ K_train.numpy() + ridge * np.eye(len(K_train)), y_tr_onehot.numpy()).T)
                 sol = sol.T
                 preds = K_train @ sol
@@ -152,7 +163,7 @@ def main():
     parser.add_argument('--agop_sma_size', default=10, type=int)
     parser.add_argument('--ema_alpha', default=0.9, type=float)
     parser.add_argument('--use_ema', default=False, action='store_true')
-    parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk'})
+    parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk', 'quadratic'})
     parser.add_argument('--save_agops', default=False, action='store_true')
     parser.add_argument('--agop_power', default=0.5, type=float)
     parser.add_argument('--agip_power', default=1.0, type=float)
@@ -174,8 +185,10 @@ def main():
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
                      f'agip_rdx_weight: {args.agip_rdx_weight}, agop_sma_size: {args.agop_sma_size}'
 
-    all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
-    X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
+    # all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
+    # X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
+
+    X_tr, y_tr, X_te, y_te = held_out_op_mod_p_data(args.operation, args.prime)
 
     X_tr = F.one_hot(X_tr, args.prime).view(-1, 2*args.prime).double()
     y_tr_onehot = F.one_hot(y_tr, args.prime).double()
@@ -184,6 +197,9 @@ def main():
     X_te = F.one_hot(X_te, args.prime).view(-1, 2*args.prime).double()
     y_te_onehot = F.one_hot(y_te, args.prime).double()
     # y_te_onehot = y_te.view(-1, 1).double()
+
+    # X_tr = torch.cat((X_tr, X_te))
+    # y_tr_onehot = torch.cat((y_tr_onehot, y_te_onehot))
 
     class_covariance = compute_train_class_freqs(y_tr_onehot)
 
@@ -209,6 +225,9 @@ def main():
         K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
 
         acc, loss, corr = eval(sol, K_test, y_te_onehot)
+        # acc2, loss2, corr2 = eval(sol, K_train.T @ K_test, y_te_onehot)
+        # if acc > 0.9:
+        #     import ipdb; ipdb.set_trace()
         print(f'Round {rfm_iter} Test MSE:\t{loss}')
         print(f'Round {rfm_iter} Test Acc:\t{acc}')
         print()
@@ -264,6 +283,15 @@ def main():
                     caption=f'M'
                 )
                 wandb.log({'M': img}, step=rfm_iter)
+
+                plt.clf()
+                plt.imshow(M - torch.diag(torch.diag(M)))
+                plt.colorbar()
+                img = wandb.Image(
+                    plt,
+                    caption=f'M_no_diag'
+                )
+                wandb.log({'M_no_diag': img}, step=rfm_iter)
 
                 plt.clf()
                 plt.imshow(Mc)

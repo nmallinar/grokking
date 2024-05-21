@@ -21,7 +21,7 @@
 for i in $(seq 1 1);
 do
   python train_s5_kernel.py \
-    --wandb_proj_name "may7_s5_test" \
+    --wandb_proj_name "may18_noncommutative_test" \
     --out_dir "./wandb" \
     --operation "x+y" \
     --prime 19 \
@@ -30,7 +30,7 @@ do
     --iters 500 \
     --ridge 0.0 \
     --bandwidth 2.5 \
-    --agop_sma_size 10 \
+    --agop_sma_size 1 \
     --agop_power 0.5 \
     --jac_reg_weight 0.0 \
     --agip_rdx_weight 0.0 \

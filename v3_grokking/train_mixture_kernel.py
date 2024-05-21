@@ -116,7 +116,7 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
     return sol, K_train, dist
 
 def update(samples, centers, bandwidth, M, weights, K, dist, \
-           kernel_type, centers_bsize=-1, centering=False,
+           kernel_type, ntk_depth, centers_bsize=-1, centering=False,
            agop_power=0.5, agip_power=1.0):
     if kernel_type == 'laplace':
         M, Mc = laplace_kernel.laplacian_M_update(samples, centers, bandwidth, M, weights, K=K, dist=dist, \
@@ -159,7 +159,7 @@ def main():
     parser.add_argument('--agop_sma_size', default=10, type=int)
     parser.add_argument('--ema_alpha', default=0.9, type=float)
     parser.add_argument('--use_ema', default=False, action='store_true')
-    parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk'})
+    parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk', 'jax_fcn_ntk'})
     parser.add_argument('--save_agops', default=False, action='store_true')
     parser.add_argument('--agop_power', default=0.5, type=float)
     parser.add_argument('--agip_power', default=1.0, type=float)
@@ -196,9 +196,22 @@ def main():
 
     M = torch.eye(X_tr.shape[1]).double()
     Mc = torch.eye(y_tr_onehot.shape[1]).double()
-    Ms = []
-    for idx in range(16):
-        Ms.append(torch.from_numpy(np.load(f'notebooks/cluster_covariances_p31_relu/cov_{idx}.npy')).double())
+    covs = []
+    for idx in range(15):
+        covs.append(torch.from_numpy(np.load(f'notebooks/new_cluster_covariances_p31_relu/cov_{idx}.npy')).double())
+
+    fc1_wvecs = []
+    for idx in range(15):
+       dist = torch.distributions.multivariate_normal.MultivariateNormal(
+          torch.zeros(2*args.prime),
+          covs[idx]
+       )
+       fc1_wvecs.append(dist.sample_n(200))
+    fc1_wvecs = torch.concatenate(fc1_wvecs, dim=0)
+    X_tr = X_tr @ fc1_wvecs.T
+    X_te = X_te @ fc1_wvecs.T
+
+    M = torch.eye(X_tr.shape[1]).double()
 
     Ms = []
     Mcs = []
@@ -206,7 +219,7 @@ def main():
     for rfm_iter in range(args.iters):
         sol, K_train, dist = solve(X_tr, y_tr_onehot, M, Mc, args.bandwidth, args.ntk_depth, args.kernel_type,
                                    ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,
-                                   use_k_inv=args.use_k_inv, Ms=Ms)
+                                   use_k_inv=args.use_k_inv, Ms=covs)
 
         acc, loss, corr = eval(sol, K_train, y_tr_onehot)
         print(f'Round {rfm_iter} Train MSE:\t{loss}')
@@ -216,7 +229,7 @@ def main():
             'training/loss': loss
         }, step=rfm_iter)
 
-        K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type, Ms=Ms)
+        K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type, Ms=covs)
 
         acc, loss, corr = eval(sol, K_test, y_te_onehot)
         print(f'Round {rfm_iter} Test MSE:\t{loss}')
@@ -228,10 +241,8 @@ def main():
             'validation/loss': loss
         }, step=rfm_iter)
 
-        sys.exit(0)
-
         M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
-                       args.kernel_type, centers_bsize=-1, centering=True,
+                       args.kernel_type, args.ntk_depth, centers_bsize=-1, centering=True,
                        agop_power=args.agop_power, agip_power=args.agip_power)
 
         if args.use_ema:

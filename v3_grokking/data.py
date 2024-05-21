@@ -27,32 +27,65 @@ ALL_OPERATIONS = {
     **ALL_MODULO_OPERATIONS,
 }
 
-def get_s5_data():
-    perms = torch.tensor(list(itertools.permutations([0, 1, 2, 3, 4])))
-    perms = F.one_hot(perms, 5).double()
-    perms = perms.view(-1, 5*5)
+def get_sym_group_data(order=5):
+    perms = torch.tensor(list(itertools.permutations(list(torch.arange(order)))))
+    perm_idx = torch.arange(len(perms))
+    prod = torch.cartesian_prod(perm_idx, perm_idx)
+    perms_prod = perms[prod]
 
-    return perms, labels
+    total_n = len(perms) * len(perms)
+    labels = []
+    for idx in range(perms_prod.shape[0]):
+        prod_idx = prod[idx]
+        a = perms_prod[idx][0]
+        b = perms_prod[idx][1]
+        c = a[b]
 
-    # true_f = torch.randn(perms.shape[1]) * 20
-    # labels = (perms @ true_f).long()
-    # labels = labels.remainder(19)
+        lab_idx = torch.where((perms==c).all(dim=1))[0][0]
+        labels.append(lab_idx)
+    labels = torch.tensor(labels)
 
-    # w1 = torch.randn(perms.shape[1], 512)
-    # w2 = torch.randn(512, 19)
-    # labels = F.relu(perms @ w1) @ w2
-    #
-    # return perms, labels
+    labels = F.one_hot(labels, len(perms)).double()
+    data = F.one_hot(prod, len(perms)).view(-1, len(perms)*2).double()
 
-    # return perms, labels.remainder(19)
-    # return perms, F.one_hot((labels.remainder(19)).argmax(-1), 19)
+    return data, labels
 
-    # w1 = torch.randn(perms.shape[1], 512)
-    # w2 = torch.randn(512)
-    # labels = F.relu(perms @ w1) @ w2
-    # labels = labels.long().remainder(19)
-    #
-    # return perms, F.one_hot(labels, 19)
+def held_out_op_mod_p_data(operation, p):
+    x_tr = torch.arange(0, p)
+    y_tr = torch.arange(0 if not operation in DIVISION_MODULO_OPERATIONS else 1, p)
+
+    x_tr = torch.cat((x_tr[0:1], x_tr[2:9], x_tr[10:]))
+    y_tr = torch.cat((y_tr[0:1], y_tr[2:9], y_tr[10:]))
+
+    # x_te = torch.tensor([1, 9])
+    # y_te = torch.tensor([1, 9])
+
+    x_tr, y_tr = torch.cartesian_prod(x_tr, y_tr).T
+    # x_te, y_te = torch.cartesian_prod(x_te, y_te).T
+
+    x_te = []
+    y_te = []
+    for i in [1, 9]:
+        for j in range(p):
+            x_te.append(i)
+            y_te.append(j)
+
+            if i != j:
+                x_te.append(j)
+                y_te.append(i)
+    x_te = torch.tensor(x_te)
+    y_te = torch.tensor(y_te)
+
+    x_tr, y_tr, z_tr = ALL_OPERATIONS[operation](x_tr, y_tr, p)
+    tr_labels = z_tr.remainder(p)
+
+    x_te, y_te, z_te = ALL_OPERATIONS[operation](x_te, y_te, p)
+    te_labels = z_te.remainder(p)
+
+    tr_inputs = torch.stack([x_tr, y_tr], dim=1)
+    te_inputs = torch.stack([x_te, y_te], dim=1)
+
+    return tr_inputs, tr_labels, te_inputs, te_labels
 
 def operation_mod_p_data(operation: str, p: int):
     """

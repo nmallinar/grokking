@@ -144,21 +144,22 @@ def main():
     # y_tr_onehot = F.one_hot(y_tr, args.prime).double()
     # y_te_onehot = F.one_hot(y_te, args.prime).double()
 
-    M = torch.eye(X_tr.shape[1]).double()
+    # M = torch.eye(X_tr.shape[1]).double()
+    M = torch.zeros(X_tr.shape[1], X_tr.shape[1]).double()
     Mc = torch.eye(y_tr_onehot.shape[1]).double()
 
-    M[:proj_dim,:proj_dim] = 1./(proj_dim)*torch.eye(proj_dim) - 1./(proj_dim)*torch.ones(proj_dim, proj_dim)
-    M[:proj_dim,:proj_dim] += torch.eye(proj_dim)
-    M[proj_dim:,proj_dim:] = M[:proj_dim,:proj_dim].clone()
+    # M[:proj_dim,:proj_dim] = 1./(proj_dim)*torch.eye(proj_dim) - 1./(proj_dim)*torch.ones(proj_dim, proj_dim)
+    # M[:proj_dim,:proj_dim] += torch.eye(proj_dim)
+    # M[proj_dim:,proj_dim:] = M[:proj_dim,:proj_dim].clone()
 
-    col1 = torch.rand(5)
-    test1 = torch.normal(0, 1.0, size=(5,))
-    test2 = torch.normal(0, 1.0, size=(5,))
-    test3 = torch.normal(0, 1.0, size=(5,))
-    test4 = torch.normal(0, 1.0, size=(5,))
-    col = torch.cat((col1 + test1, col1 + test2, col1 + test3, col1 + test4))[:19]
+    # col1 = torch.rand(5)
+    # test1 = torch.normal(0, 1.0, size=(5,))
+    # test2 = torch.normal(0, 1.0, size=(5,))
+    # test3 = torch.normal(0, 1.0, size=(5,))
+    # test4 = torch.normal(0, 1.0, size=(5,))
+    # col = torch.cat((col1 + test1, col1 + test2, col1 + test3, col1 + test4))[:19]
     # col = torch.rand(args.prime)*2
-    # col = torch.randn(proj_dim)
+    col = torch.randn(proj_dim)
     # col = torch.normal(0, 1, size=(proj_dim,))
     # col = [np.cos(2*np.pi*i/proj_dim) for i in range(int((proj_dim)))]
             # [np.sin(2*np.pi*i/proj_dim) for i in range(int((proj_dim-1)/2))]
@@ -166,7 +167,8 @@ def main():
     # print(col)
     # col = torch.arange(0, 1, (1. / proj_dim))
     circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
-    circ = torch.from_numpy(np.load('notebooks/circ2.npy')).double()
+    # circ = torch.from_numpy(scipy.linalg.toeplitz(col.numpy()))
+    # circ = torch.from_numpy(np.load('notebooks/circ2.npy')).double()
 
     if args.operation == 'x-y':
         M[:proj_dim,proj_dim:] = torch.rot90(circ)

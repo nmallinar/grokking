@@ -8,7 +8,7 @@ import numpy as np
 import scipy
 import random
 
-from data import operation_mod_p_data, make_data_splits, get_s5_data
+from data import operation_mod_p_data, make_data_splits, get_sym_group_data
 from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk
 import utils
 
@@ -155,7 +155,7 @@ def main():
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
                      f'agip_rdx_weight: {args.agip_rdx_weight}, agop_sma_size: {args.agop_sma_size}'
 
-    all_inputs, all_labels = get_s5_data()
+    all_inputs, all_labels = get_sym_group_data(order=5)
     X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
 
     y_tr_onehot = y_tr
@@ -225,9 +225,10 @@ def main():
                 'training/agip_tr': torch.trace(Mc)
             }, step=rfm_iter)
 
-        if (rfm_iter < 25) or \
-            (rfm_iter < 100 and rfm_iter % 25 == 0) or \
-            (rfm_iter < 500 and rfm_iter % 50 == 0):
+        # if (rfm_iter < 25) or \
+        #     (rfm_iter < 100 and rfm_iter % 25 == 0) or \
+        #     (rfm_iter < 500 and rfm_iter % 50 == 0):
+        if rfm_iter % 25 == 0:
 
             if args.save_agops:
                 os.makedirs(os.path.join(out_dir, f'iter_{rfm_iter}'), exist_ok=True)
