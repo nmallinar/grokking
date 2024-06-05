@@ -43,17 +43,17 @@ class OneLayerFCN(torch.nn.Module):
 
     # scaled kaiming normal code:
     leaky_neg_slope = 0.
-    #fan = nn.init._calculate_correct_fan(self.fc1.weight, "fan_in")
-    #gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
-    #std = gain/math.sqrt(fan)
-    #nn.init.normal_(self.fc1.weight, mean=0.0, std=init_scale*std)
+    fan = nn.init._calculate_correct_fan(self.fc1.weight, "fan_in")
+    gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
+    std = gain/math.sqrt(fan)
+    nn.init.normal_(self.fc1.weight, mean=0.0, std=init_scale*std)
 
     fan = nn.init._calculate_correct_fan(self.out.weight, "fan_in")
     gain = nn.init.calculate_gain("leaky_relu", leaky_neg_slope)
     std = gain/math.sqrt(fan)
     nn.init.normal_(self.out.weight, mean=0.0, std=init_scale*std)
 
-    #w1 = torch.from_numpy(np.load('outdir/ep_1200_w1.npy')).double()
+    #w1 = torch.from_numpy(np.load('outdir/cluster_covariances/ep_2800_w1_p31_relu.npy')).double()
     #nfm = w1.T @ w1
     #nfm = torch.from_numpy(np.load('nfm_scale1e-4.npy')).double()
     #dist = torch.distributions.multivariate_normal.MultivariateNormal(
@@ -63,13 +63,13 @@ class OneLayerFCN(torch.nn.Module):
     #self.fc1.weight.data = dist.sample_n(self.fc1.weight.shape[0])
 
     #fc1_wvecs = []
-    #for idx in range(16):
-    #    cov = torch.from_numpy(np.load(f'outdir/cluster_covariances_p31/cov_{idx}.npy')).double()
+    #for idx in range(15):
+    #    cov = torch.from_numpy(np.load(f'outdir/cluster_covariances/cov_{idx}.npy')).double()
     #    dist = torch.distributions.multivariate_normal.MultivariateNormal(
     #       torch.zeros(self.fc1.weight.shape[1]),
-    #       cov + 1e-12 * torch.eye(self.fc1.weight.shape[1])
+    #       cov + 0.0 * torch.eye(self.fc1.weight.shape[1])
     #    )
-    #    fc1_wvecs.append(dist.sample_n(int(self.fc1.weight.shape[0]/16)))
+    #    fc1_wvecs.append(dist.sample_n(int(self.fc1.weight.shape[0]/15)))
     #self.fc1.weight.data = torch.concatenate(fc1_wvecs, dim=0)
     #self.fc1.requires_grad_(False)
 

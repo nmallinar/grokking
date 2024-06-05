@@ -32,6 +32,19 @@ def display_all_agops(agops, per_class_agops, wandb, global_step):
     )
     wandb.log({'sqrt_agop': img}, step=global_step)
 
+    rand_test = per_class_agops[1].numpy() + per_class_agops[30].numpy()
+    sqrt_agop = np.real(scipy.linalg.sqrtm(rand_test))
+    plt.clf()
+    plt.imshow(sqrt_agop)
+    plt.colorbar()
+    img = wandb.Image(
+        plt,
+        caption=f'1+30 test'
+    )
+    wandb.log({
+        f'1+30_test': img
+    }, step=global_step)
+
     for idx in range(len(per_class_agops)):
         sqrt_agop = np.real(scipy.linalg.sqrtm(per_class_agops[idx].numpy()))
         plt.clf()
@@ -48,9 +61,11 @@ def display_all_agops(agops, per_class_agops, wandb, global_step):
         vals, _ = np.linalg.eig(sqrt_agop)
         vals = np.array(sorted(list(vals))[::-1])
         plt.clf()
-        plt.plot(range(len(vals)), np.log(vals))
+        plt.plot(range(len(vals)), np.log(vals) + 1e-12)
         plt.xlabel('eig idx')
         plt.ylabel('ln(eigs)')
+        plt.grid()
+        plt.vlines(4, min(np.log(vals + 1e-12)) - 1, max(np.log(vals + 1e-12)) + 1, color='red', linestyle=':')
         img = wandb.Image(
             plt,
             caption=f'cls_{idx}, eigs sqrt(AGOP)'

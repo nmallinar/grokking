@@ -18,9 +18,9 @@ import agop_utils
 import matplotlib.pyplot as plt
 
 torch.set_default_dtype(torch.float64)
-# torch.manual_seed(3143)
-# random.seed(253)
-# np.random.seed(1145)
+torch.manual_seed(3143)
+random.seed(253)
+np.random.seed(1145)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -61,10 +61,10 @@ def main():
 
     wandb.run.name = f'{wandb.run.id} - p: {args.prime}, train_frac: {args.training_fraction}'
 
-    # all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
-    # X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
+    all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
+    X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
 
-    X_tr, y_tr, X_te, y_te = held_out_op_mod_p_data(args.operation, args.prime)
+    #X_tr, y_tr, X_te, y_te = held_out_op_mod_p_data(args.operation, args.prime)
 
     X_tr = F.one_hot(X_tr, args.prime).view(-1, 2*args.prime).double()
     y_tr_onehot = F.one_hot(y_tr, args.prime).double()
@@ -191,6 +191,14 @@ def main():
         )
         wandb.log({'NFM': img}, step=global_step)
 
+        plt.clf()
+        plt.imshow(nfm - np.diag(np.diag(nfm)))
+        plt.colorbar()
+        img = wandb.Image(
+            plt,
+            caption='NFM_no_diag'
+        )
+        wandb.log({'NFM_no_diag': img}, step=global_step)
 
 if __name__=='__main__':
     main()
