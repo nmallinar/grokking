@@ -6,6 +6,9 @@ import jax.numpy as jnp
 import torch
 import numpy as np
 import scipy
+import math
+import warnings
+warnings.filterwarnings("ignore")
 
 def torch2jax(x):
     x = torch.to_dlpack(x)
@@ -18,17 +21,18 @@ def jax2torch(x):
 layers = []
 for _ in range(1, 2):
     layers += [
-        stax.Dense(1, W_std=1, b_std=None, parameterization='ntk'),
-        stax.Relu()
+        stax.Dense(1024, W_std=1, b_std=None, parameterization='ntk'),
+        stax.ElementwiseNumerical(lambda x: (jnp.pow(x, 2) - 1.0)/jnp.sqrt(2.0), 100)
+        # stax.Relu()
         # stax.Monomial(2)
         # stax.Hermite(2)
         # stax.Erf()
         # stax.Rbf(2.5)
         # stax.Cos()
-        # stax.LeakyRelu(0.5)
+        # stax.LeakyRelu(0.1)
         # stax.Gaussian()
     ]
-layers.append(stax.Dense(1, W_std=1, b_std=None, parameterization='ntk'))
+layers.append(stax.Dense(19, W_std=1, b_std=None, parameterization='ntk'))
 
 _, _, kernel_fn = stax.serial(*layers)
 
@@ -36,12 +40,15 @@ def ntk_fn(x, y, M=None, depth=2, bias=1, convert=True):
     if convert:
         x = torch2jax(x)
         y = torch2jax(y)
+        M = torch2jax(M)
 
     if M is not None:
-        M = torch2jax(M)
+        # sqrtM = M
         sqrtM = jnp.real(sqrtm(M))
         x = x @ sqrtM
         y = y @ sqrtM
+        # x /= jnp.linalg.norm(x, axis=1, keepdims=True)
+        # y /= jnp.linalg.norm(y, axis=1, keepdims=True)
 
     ntk_nngp_jax = kernel_fn(x, y)
     nngp_jax = ntk_nngp_jax.nngp
@@ -54,6 +61,7 @@ def ntk_fn(x, y, M=None, depth=2, bias=1, convert=True):
         return nngp_jax.double(), ntk_jax.double()
 
     return nngp_jax, ntk_jax
+    # return ntk_fn, nngp_jax
 
 # def ntk_mixture_fn(x, y, Ms, depth=2, bias=1, convert=True):
 #     _Ms = []
@@ -74,23 +82,27 @@ def ntk_relu_M_update(alphas, centers, samples, M, ntk_depth=1):
     M = torch2jax(M)
 
     M_is_passed = M is not None
+    # M_is_passed = False
     sqrtM = None
     if M_is_passed:
         # sqrtM = utils.matrix_sqrt(M)
         sqrtM = jnp.real(sqrtm(M))
+        # sqrtM = M
 
     def get_solo_grads(sol, X, x):
         if M_is_passed:
             X_M = X@sqrtM
+            # X_M /= jnp.linalg.norm(X_M, axis=1, keepdims=True)
         else:
             X_M = X
 
         def egop_fn(z):
             if M_is_passed:
                 z_ = z@sqrtM
+                # z_ /= jnp.linalg.norm(z_, axis=1, keepdims=True)
             else:
                 z_ = z
-            _, K = ntk_fn(z_, X_M, M=None, depth=ntk_depth, bias=1, convert=False)
+            _, K = ntk_fn(z_, X_M, M=M, depth=ntk_depth, bias=1, convert=False)
             return (K@sol).squeeze()
         # grads = jax.jacrev(egop_fn)(x)
         grads = jnp.squeeze(jax.vmap(jax.jacrev(egop_fn))(jnp.expand_dims(x, 1)))
@@ -111,7 +123,7 @@ def ntk_relu_M_update(alphas, centers, samples, M, ntk_depth=1):
     for btrain in train_batches:
         G += get_solo_grads(torch2jax(alphas[btrain,:]), torch2jax(centers[btrain]), torch2jax(samples))
     c = G.shape[1]
-    G = G - G.mean(0)
+    G = G - G.mean(0).unsqueeze(0)
 
     Gd = G.reshape(-1, d)
     egop += Gd.T @ Gd/s
@@ -170,6 +182,7 @@ def get_jac_reg(samples, centers, bandwidth, M, ntk_depth, K=None, \
     for btrain in train_batches:
         G_batch = get_solo_grads(torch2jax(centers[btrain]), torch2jax(samples))
         G_batch = G_batch.reshape(n, n*d)
+        # G_batch -= G_batch.mean(0).unsqueeze(0)
         G += G_batch @ G_batch.T
 
     # return egop, egip_fake

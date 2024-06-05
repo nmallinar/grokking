@@ -48,6 +48,8 @@ def get_test_kernel(X_tr, X_te, M, bandwidth, ntk_depth, kernel_type):
         _, K_test = jax_fcn_relu_ntk.ntk_fn(X_tr, X_te, M=M, depth=ntk_depth, bias=0, convert=True)
     elif kernel_type == 'quadratic':
         K_test = quadratic_kernel.quadratic_M(X_tr, X_te, M)
+    elif kernel_type == 'general_quadratic':
+        K_test = quadratic_kernel.general_quadratic_M(X_tr, X_te, M)
 
     return K_test
 
@@ -76,6 +78,10 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
             jac = jax_fcn_relu_ntk.get_jac_reg(X_tr, X_tr, bandwidth, M, ntk_depth, K=K_train)
     elif kernel_type == 'quadratic':
         K_train = quadratic_kernel.quadratic_M(X_tr, X_tr, M)
+        if jac_reg_weight > 0:
+            jac = quadratic_kernel.get_jac_reg(X_tr, X_tr, bandwidth, M)
+    elif kernel_type == 'general_quadratic':
+        K_train = quadratic_kernel.general_quadratic_M(X_tr, X_tr, M)
         if jac_reg_weight > 0:
             raise Exception()
 
@@ -120,7 +126,7 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
     return sol, K_train, dist
 
 def update(samples, centers, bandwidth, M, weights, K, dist, \
-           kernel_type, centers_bsize=-1, centering=False,
+           kernel_type, ntk_depth, centers_bsize=-1, centering=False,
            agop_power=0.5, agip_power=1.0):
     if kernel_type == 'laplace':
         M, Mc = laplace_kernel.laplacian_M_update(samples, centers, bandwidth, M, weights, K=K, dist=dist, \
@@ -135,6 +141,8 @@ def update(samples, centers, bandwidth, M, weights, K, dist, \
         M, Mc = jax_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
     elif kernel_type == 'quadratic':
         M, Mc = quadratic_kernel.quad_M_update(samples, centers, weights.T, M, centering=centering)
+    elif kernel_type == 'general_quadratic':
+        M, Mc = quadratic_kernel.general_quadratic_M_update(samples, centers, weights.T, M, centering=centering)
 
     return M, Mc
 
@@ -163,7 +171,8 @@ def main():
     parser.add_argument('--agop_sma_size', default=10, type=int)
     parser.add_argument('--ema_alpha', default=0.9, type=float)
     parser.add_argument('--use_ema', default=False, action='store_true')
-    parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk', 'quadratic'})
+    parser.add_argument('--kernel_type', default='gaussian', choices={'gaussian', 'laplace', 'fcn_relu_ntk',
+                                                                      'quadratic', 'general_quadratic', 'jax_fcn_ntk'})
     parser.add_argument('--save_agops', default=False, action='store_true')
     parser.add_argument('--agop_power', default=0.5, type=float)
     parser.add_argument('--agip_power', default=1.0, type=float)
@@ -185,10 +194,10 @@ def main():
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
                      f'agip_rdx_weight: {args.agip_rdx_weight}, agop_sma_size: {args.agop_sma_size}'
 
-    # all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
-    # X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
+    all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
+    X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
 
-    X_tr, y_tr, X_te, y_te = held_out_op_mod_p_data(args.operation, args.prime)
+    # X_tr, y_tr, X_te, y_te = held_out_op_mod_p_data(args.operation, args.prime)
 
     X_tr = F.one_hot(X_tr, args.prime).view(-1, 2*args.prime).double()
     y_tr_onehot = F.one_hot(y_tr, args.prime).double()
@@ -238,7 +247,7 @@ def main():
         }, step=rfm_iter)
 
         M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
-                       args.kernel_type, centers_bsize=-1, centering=True,
+                       args.kernel_type, args.ntk_depth, centers_bsize=-1, centering=True,
                        agop_power=args.agop_power, agip_power=args.agip_power)
 
         if args.use_ema:
@@ -256,7 +265,6 @@ def main():
 
             M = torch.mean(torch.stack(Ms), dim=0)
             Mc = torch.mean(torch.stack(Mcs), dim=0)
-
 
         with torch.no_grad():
             wandb.log({
@@ -293,39 +301,39 @@ def main():
                 )
                 wandb.log({'M_no_diag': img}, step=rfm_iter)
 
-                plt.clf()
-                plt.imshow(Mc)
-                plt.colorbar()
-                img = wandb.Image(
-                    plt,
-                    caption=f'Mc'
-                )
-                wandb.log({'Mc': img}, step=rfm_iter)
-
-                M_vals = torch.flip(torch.linalg.eigvalsh(M), (0,))
-                Mc_vals = torch.flip(torch.linalg.eigvalsh(Mc), (0,))
-
-                plt.clf()
-                plt.plot(range(len(M_vals)), np.log(M_vals))
-                plt.grid()
-                plt.xlabel('eigenvalue idx')
-                plt.ylabel('ln(eigenvalue)')
-                img = wandb.Image(
-                    plt,
-                    caption='M_eigenvalues'
-                )
-                wandb.log({'M_eigs': img}, step=rfm_iter)
-
-                plt.clf()
-                plt.plot(range(len(Mc_vals)), np.log(Mc_vals))
-                plt.grid()
-                plt.xlabel('eigenvalue idx')
-                plt.ylabel('ln(eigenvalue)')
-                img = wandb.Image(
-                    plt,
-                    caption='Mc_eigenvalues'
-                )
-                wandb.log({'Mc_eigs': img}, step=rfm_iter)
+                # plt.clf()
+                # plt.imshow(Mc)
+                # plt.colorbar()
+                # img = wandb.Image(
+                #     plt,
+                #     caption=f'Mc'
+                # )
+                # wandb.log({'Mc': img}, step=rfm_iter)
+                #
+                # M_vals = torch.flip(torch.linalg.eigvalsh(M), (0,))
+                # Mc_vals = torch.flip(torch.linalg.eigvalsh(Mc), (0,))
+                #
+                # plt.clf()
+                # plt.plot(range(len(M_vals)), np.log(M_vals))
+                # plt.grid()
+                # plt.xlabel('eigenvalue idx')
+                # plt.ylabel('ln(eigenvalue)')
+                # img = wandb.Image(
+                #     plt,
+                #     caption='M_eigenvalues'
+                # )
+                # wandb.log({'M_eigs': img}, step=rfm_iter)
+                #
+                # plt.clf()
+                # plt.plot(range(len(Mc_vals)), np.log(Mc_vals))
+                # plt.grid()
+                # plt.xlabel('eigenvalue idx')
+                # plt.ylabel('ln(eigenvalue)')
+                # img = wandb.Image(
+                #     plt,
+                #     caption='Mc_eigenvalues'
+                # )
+                # wandb.log({'Mc_eigs': img}, step=rfm_iter)
 
 if __name__=='__main__':
     main()

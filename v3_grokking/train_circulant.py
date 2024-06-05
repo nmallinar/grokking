@@ -159,25 +159,57 @@ def main():
     # test4 = torch.normal(0, 1.0, size=(5,))
     # col = torch.cat((col1 + test1, col1 + test2, col1 + test3, col1 + test4))[:19]
     # col = torch.rand(args.prime)*2
-    col = torch.randn(proj_dim)
+    # col = torch.randn(proj_dim)
     # col = torch.normal(0, 1, size=(proj_dim,))
     # col = [np.cos(2*np.pi*i/proj_dim) for i in range(int((proj_dim)))]
             # [np.sin(2*np.pi*i/proj_dim) for i in range(int((proj_dim-1)/2))]
     # col = torch.tensor(col) * 2
     # print(col)
     # col = torch.arange(0, 1, (1. / proj_dim))
-    circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
     # circ = torch.from_numpy(scipy.linalg.toeplitz(col.numpy()))
     # circ = torch.from_numpy(np.load('notebooks/circ2.npy')).double()
+
+    # col = torch.randn(proj_dim)
+    col = torch.normal(0, 1, size=(proj_dim,))
+    # col = torch.zeros((proj_dim,))
+    # col[0] = 1.0
+    # col[1] = 1.0
+    # col[-1] = -1.0
+    # col[2] = 1.0
+    # col[3] = 1.0
+    circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
+
+    '''
+    dft = torch.from_numpy(np.fft.fft(np.eye(proj_dim))) / np.sqrt(proj_dim)
+    # eigs = torch.diag(torch.rand(proj_dim))
+    # eigs = torch.diag(torch.normal(0, 1, size=(proj_dim,)))
+    # eigs[1] = eigs[0]
+    # eigs[2] = eigs[0]
+    # eigs[3] = eigs[0]
+    eigs = torch.diag(torch.ones(size=(proj_dim,)))
+    # eigs[0] = torch.rand(1)
+    circ = dft @ torch.complex(eigs, torch.zeros(eigs.shape)) @ dft.H
+    circ = torch.real(circ)
+    print(circ)
+    circ -= circ.mean(0)
+    print(torch.mean(circ, dim=0))
+    # import ipdb; ipdb.set_trace()
+    '''
 
     if args.operation == 'x-y':
         M[:proj_dim,proj_dim:] = torch.rot90(circ)
     elif args.operation == 'x+y':
+        # M[:proj_dim, proj_dim:] = torch.eye(proj_dim)
         M[:proj_dim,proj_dim:] = circ
+        # M[:proj_dim, :proj_dim] = circ
 
+    # M[proj_dim:,proj_dim:] = circ.T
     M[proj_dim:,:proj_dim] = M[:proj_dim,proj_dim:].clone().T
     # M = torch.from_numpy(np.load('../v2_grokking/saved_agops/relu_small_init_p19/right_nfm.npy')).double()
+    # import ipdb; ipdb.set_trace()
     M = torch.from_numpy(np.real(scipy.linalg.sqrtm(M)))
+    # M = torch.eye(M.shape[0])*0.5
+    # import ipdb; ipdb.set_trace()
 
     sol, K_train, dist = solve(X_tr, y_tr_onehot, M, Mc, args.bandwidth, args.ntk_depth, args.kernel_type,
                                ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,

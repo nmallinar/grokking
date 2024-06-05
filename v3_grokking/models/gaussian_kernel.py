@@ -215,6 +215,11 @@ def get_jac_reg(samples, centers, bandwidth, M, K=None, \
     all_diffs = all_diffs @ M
     all_diffs /= (bandwidth**2)
 
+    # KDM = (K.unsqueeze(2) * all_diffs)
+    # if centering:
+    #     KDM -= torch.mean(KDM, axis=0).unsqueeze(0)
+    # KDM = KDM.reshape(n, n*d)
+
     KDM = (K.unsqueeze(2) * all_diffs).reshape(n, n*d)
     # appears to have max value ~ p^2 / 100
     G_test = KDM @ KDM.T

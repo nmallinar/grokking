@@ -23,7 +23,7 @@ do
   python train_circulant.py \
     --out_dir "./" \
     --operation "x+y" \
-    --prime 19 \
+    --prime 61 \
     --training_fraction 0.5 \
     --kernel_type "gaussian" \
     --ridge 1e-4 \

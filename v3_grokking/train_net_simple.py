@@ -143,9 +143,9 @@ def main():
             total_loss /= total
             acc = count / total
 
-            if acc == 1.0:
-                nfm = model.fc1.weight.data.T @ model.fc1.weight.data
-                np.save('nfm.npy', nfm.detach().cpu().numpy())
+            # if acc == 1.0:
+                # nfm = model.fc1.weight.data.T @ model.fc1.weight.data
+                # np.save('nfm.npy', nfm.detach().cpu().numpy())
 
             #print(f'Epoch {epoch}:\tacc: {acc}\tloss: {loss}')
             wandb.log({
@@ -155,9 +155,6 @@ def main():
             }, step=global_step)
 
             if args.viz_umap and epoch % 200 == 0:
-                agops, _, _, _, per_class_agops = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
-                utils.display_all_agops(agops, per_class_agops, wandb, global_step)
-
                 mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
                                    metric='euclidean', n_components=2)
                 cmap = utils.generate_colormap(args.prime)
@@ -179,26 +176,31 @@ def main():
                 embeddings = mapper.fit_transform(U.T)
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U.T', 'umap/U.T', global_step)
 
+        if epoch % 100 == 0:
+            # agops, _, _, _, _ = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
+            # utils.display_all_agops(agops, per_class_agops, wandb, global_step)
+            agops, _, _, _ = calc_full_agops(model, agop_loader, args)
+            utils.display_all_agops(agops, [], wandb, global_step)
 
-        nfm = model.fc1.weight.data.T @ model.fc1.weight.data
-        nfm = nfm.detach().cpu().numpy()
-        plt.clf()
-        plt.imshow(nfm)
-        plt.colorbar()
-        img = wandb.Image(
-            plt,
-            caption='NFM'
-        )
-        wandb.log({'NFM': img}, step=global_step)
+            nfm = model.fc1.weight.data.T @ model.fc1.weight.data
+            nfm = nfm.detach().cpu().numpy()
+            plt.clf()
+            plt.imshow(nfm)
+            plt.colorbar()
+            img = wandb.Image(
+                plt,
+                caption='NFM'
+            )
+            wandb.log({'NFM': img}, step=global_step)
 
-        plt.clf()
-        plt.imshow(nfm - np.diag(np.diag(nfm)))
-        plt.colorbar()
-        img = wandb.Image(
-            plt,
-            caption='NFM_no_diag'
-        )
-        wandb.log({'NFM_no_diag': img}, step=global_step)
+            plt.clf()
+            plt.imshow(nfm - np.diag(np.diag(nfm)))
+            plt.colorbar()
+            img = wandb.Image(
+                plt,
+                caption='NFM_no_diag'
+            )
+            wandb.log({'NFM_no_diag': img}, step=global_step)
 
 if __name__=='__main__':
     main()
