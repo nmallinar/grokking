@@ -32,6 +32,15 @@ def display_all_agops(agops, per_class_agops, wandb, global_step, prefix=''):
     )
     wandb.log({f'{prefix}sqrt_agop': img}, step=global_step)
 
+    plt.clf()
+    plt.imshow(sqrt_agop - np.diag(np.diag(sqrt_agop)))
+    plt.colorbar()
+    img = wandb.Image(
+        plt,
+        caption='no diag sqrt(AGOP)'
+    )
+    wandb.log({f'{prefix}no_diag_sqrt_agop': img}, step=global_step)
+
     # rand_test = per_class_agops[1].numpy() + per_class_agops[30].numpy()
     # sqrt_agop = np.real(scipy.linalg.sqrtm(rand_test))
     # plt.clf()

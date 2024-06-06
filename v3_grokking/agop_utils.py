@@ -1,4 +1,6 @@
 import torch
+import math
+torch.set_default_dtype(torch.float64)
 
 def calc_full_agops_exact(model, loader, config):
     with torch.no_grad():
@@ -14,14 +16,15 @@ def calc_full_agops_exact(model, loader, config):
             total_n += nsamps
 
             hid1 = inputs @ model.fc1.weight.T
-            hid1 = (hid1 > 0).float()
+            #hid1 = (2/math.sqrt(2))*hid1
+            hid1 = (hid1 > 0).double()
             # agop = 0.0
             test1 = model.out.weight.T @ model.out.weight
             # test2 = model.fc1.weight @ model.fc1.weight.T
             for jdx in range(hid1.shape[0]):
                 dhid1 = torch.diag(hid1[jdx])
                 left_agop_test += model.fc1.weight.T @ dhid1 @ test1 @ dhid1 @ model.fc1.weight
-        return left_agop_test /= total_n
+        return left_agop_test.detach().cpu() / total_n
 
 def calc_full_agops(model, loader, config):
     dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
@@ -107,7 +110,7 @@ def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, de
 
     for idx in range(len(jacs)):
         cjac = torch.sum(jacs[idx], dim=(2, 3)).reshape(len(inputs), jacs[idx].shape[1])
-        jacs[idx] = torch.sum(jacs[idx], dim=(1, 2)).reshape(len(inputs), -1)
+        jacs[idx] = torch.sum(jacs[idx].detach().cpu(), dim=(1, 2)).reshape(len(inputs), -1)
 
         agop = jacs[idx].t() @ jacs[idx] / len(inputs)
         agip = cjac.t() @ cjac / len(inputs)
