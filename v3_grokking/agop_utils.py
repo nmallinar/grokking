@@ -27,7 +27,7 @@ def calc_full_agops_exact(model, loader, config):
         return left_agop_test.detach().cpu() / total_n
 
 def calc_full_agop(model, loader, config):
-    dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    dumb1 = torch.zeros((config.agop_batch_size, model.inp_dim)).to(config.device)
     total_n = 0
     final_agop = 0.0
     for idx, batch in enumerate(loader):
@@ -46,9 +46,10 @@ def calc_full_agop(model, loader, config):
 
 def calc_batch_agop(model, inputs, dumb1, device, config):
     jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0]
+    import ipdb; ipdb.set_trace()
     jacs = torch.sum(jacs, dim=(1, 2)).reshape(len(inputs), -1)
     agop = jacs.t() @ jacs / len(inputs)
-    return agop
+    return agop.detach().cpu()
 
 def _calc_full_agops(model, loader, config):
     dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
