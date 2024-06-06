@@ -30,6 +30,7 @@ def calc_full_agop(model, loader, config):
     dumb1 = torch.zeros((config.agop_batch_size, model.inp_dim)).to(config.device)
     total_n = 0
     final_agop = 0.0
+    final_per_class_agops = []
     for idx, batch in enumerate(loader):
         # Copy data to device if needed
         batch = tuple(t.to(config.device) for t in batch)
@@ -39,19 +40,34 @@ def calc_full_agop(model, loader, config):
         nsamps = inputs.size(0)
         total_n += nsamps
 
-        agop = calc_batch_agop(model, inputs, dumb1, config.device, config)
+        agop, per_class_agops = calc_batch_agop(model, inputs, dumb1, config.device, config)
         final_agop += agop * nsamps
+        for jdx in range(len(per_class_agops)):
+            if len(final_per_class_agops) < config.prime:
+                final_per_class_agops.append(per_class_agops[jdx] * nsamps)
+            else:
+                final_per_class_agops[jdx] += per_class_agops[jdx] * nsamps
+
     final_agop /= total_n
-    return final_agop
+    for jdx in range(len(per_class_agops)):
+        per_class_agops[jdx] /= total_n
+    return final_agop, per_class_agops
 
 def calc_batch_agop(model, inputs, dumb1, device, config):
-    jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0]
+    jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0].detach().cpu()
+
+    per_class_agops = []
+    for c_idx in range(config.prime):
+        c_jac = jacs[:,c_idx,:,:].reshape(-1, model.inp_dim)
+        per_class_agops.append(c_jac.t() @ c_jac / len(inputs))
+
     #import ipdb; ipdb.set_trace()
     #jacs = torch.sum(jacs, dim=(1, 2)).reshape(len(inputs), -1)
     jacs = jacs.reshape(-1, model.inp_dim)
     # jacs = torch.sum(jacs, dim=(0, 2))
     agop = jacs.t() @ jacs / len(inputs)
-    return agop.detach().cpu()
+
+    return agop, per_class_agops
 
 def _calc_full_agops(model, loader, config):
     dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
