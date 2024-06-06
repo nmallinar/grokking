@@ -75,12 +75,26 @@ def main():
     agop_loader = make_dataloader(X_tr.clone(), y_tr_onehot.clone(), args.agop_batch_size, shuffle=False, drop_last=True)
     test_loader = make_dataloader(X_te, y_te_onehot, args.batch_size, shuffle=False, drop_last=False)
 
+    r = 1
+    def sample_data(num_samples):
+        X = np.random.normal(size=(args.agop_batch_size, args.prime))
+        y = np.linalg.norm(X[:,:r],axis=1)
+        return X, y.reshape(-1, 1)/np.sqrt(r)
+
+    X_train, y_train = sample_data(train_size)
+    X_train = torch.from_numpy(X_train).float()
+    y_train = torch.from_numpy(y_train).float()
+
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size=train_size, shuffle=False, num_workers=1)
+    agop_loader = train_loader
+    test_loader = train_loader
+
     model = neural_nets.OneLayerFCN(
         num_tokens=args.prime,
         hidden_width=args.hidden_width,
         context_len=2,
         init_scale=args.init_scale,
-        n_classes=args.prime
+        n_classes=1
     ).to(args.device)
 
 
