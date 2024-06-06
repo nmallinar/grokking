@@ -244,7 +244,8 @@ def calc_batch_agops_per_class(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5,
         jacs[idx] = torch.sum(jacs[idx], dim=(0, 2)).detach().cpu()
         for c_idx in range(config.prime):
             per_class_agops.append(
-                jacs[idx][c_idx].t() @ jacs[idx][c_idx] / len(inputs)
+                jacs[idx][c_idx].unsqueeze(-1) @ jacs[idx][c_idx].unsqueeze(0) / len(inputs)
+                #jacs[idx][c_idx].t() @ jacs[idx][c_idx] / len(inputs)
             )
 
         # cjac = torch.sum(jacs[idx], dim=(2, 3)).reshape(len(inputs), jacs[idx].shape[1])
