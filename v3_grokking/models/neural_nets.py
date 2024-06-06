@@ -82,8 +82,7 @@ class OneLayerFCN(torch.nn.Module):
     nn.init.uniform_(w0, -init_scale*bound, init_scale*bound)
     return w0.T
 
-  def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
-              dumb4=None, return_layer=None, act='relu'):
+  def forward(self, x, dumb1=None, act='relu'):
       if act == 'relu':
           act_fn = F.relu
       elif act == 'swish':
@@ -98,26 +97,51 @@ class OneLayerFCN(torch.nn.Module):
           act_fn = lambda x: (torch.pow(x, 2) - 1)/math.sqrt(2)
 
       if dumb1 is None:
-          if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
-              M = self.fc1.weight.t() @ self.fc1.weight
-              L, V = torch.linalg.eigh(M)
-              sqrtM = V @ torch.diag(torch.sqrt(L)) @ V.T
-              if return_layer == 'M^.5x':
-                  return x @ sqrtM
-              return act_fn(x @ sqrtM)
-
           x = self.fc1(x)
-          if return_layer == 'lin1':
-              return x
           x = act_fn(x)
-          if return_layer == 'act_fn(lin1)':
-              return x
 
           return self.out(x)
 
-      x = act_fn(self.fc1(x) + dumb1 + dumb3 @ self.fc1.weight.t())
-      x = self.out(x) + dumb2 + dumb4 @ self.out.weight.t()
+      x = act_fn(self.fc1(x) + dumb1 @ self.fc1.weight.t())
+      x = self.out(x)
       return x
+
+  # def forward(self, x, dumb1=None, dumb2=None, dumb3=None,
+  #             dumb4=None, return_layer=None, act='relu'):
+  #     if act == 'relu':
+  #         act_fn = F.relu
+  #     elif act == 'swish':
+  #         act_fn = F.silu
+  #     elif act == 'pow2':
+  #         act_fn = lambda x: torch.pow(x, 2)
+  #     elif act == 'softplus':
+  #         act_fn = F.softplus
+  #     elif act == 'linear':
+  #         act_fn = lambda x: x
+  #     elif act == 'hermite2':
+  #         act_fn = lambda x: (torch.pow(x, 2) - 1)/math.sqrt(2)
+  #
+  #     if dumb1 is None:
+  #         if return_layer == 'M^.5x' or return_layer == 'act_fn(M^.5x)':
+  #             M = self.fc1.weight.t() @ self.fc1.weight
+  #             L, V = torch.linalg.eigh(M)
+  #             sqrtM = V @ torch.diag(torch.sqrt(L)) @ V.T
+  #             if return_layer == 'M^.5x':
+  #                 return x @ sqrtM
+  #             return act_fn(x @ sqrtM)
+  #
+  #         x = self.fc1(x)
+  #         if return_layer == 'lin1':
+  #             return x
+  #         x = act_fn(x)
+  #         if return_layer == 'act_fn(lin1)':
+  #             return x
+  #
+  #         return self.out(x)
+  #
+  #     x = act_fn(self.fc1(x) + dumb1 + dumb3 @ self.fc1.weight.t())
+  #     x = self.out(x) + dumb2 + dumb4 @ self.out.weight.t()
+  #     return x
 
 class TwoLayerFCN(torch.nn.Module):
    def __init__(self, num_tokens: int, hidden_width: int,

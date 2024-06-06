@@ -26,7 +26,31 @@ def calc_full_agops_exact(model, loader, config):
                 left_agop_test += model.fc1.weight.T @ dhid1 @ test1 @ dhid1 @ model.fc1.weight
         return left_agop_test.detach().cpu() / total_n
 
-def calc_full_agops(model, loader, config):
+def calc_full_agop(model, loader, config):
+    dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
+    total_n = 0
+    final_agop = 0.0
+    for idx, batch in enumerate(loader):
+        # Copy data to device if needed
+        batch = tuple(t.to(config.device) for t in batch)
+        # Unpack the batch from the loader
+        inputs, labels = batch
+
+        nsamps = inputs.size(0)
+        total_n += nsamps
+
+        agop = calc_batch_agop(model, inputs, dumb1, config.device, config)
+        final_agop += agop * nsamps
+    final_agop /= total_n
+    return final_agop
+
+def calc_batch_agop(model, inputs, dumb1, device, config):
+    jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0]
+    jacs = torch.sum(jacs, dim=(1, 2)).reshape(len(inputs), -1)
+    agop = jacs.t() @ jacs / len(inputs)
+    return agop
+
+def _calc_full_agops(model, loader, config):
     dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
     dumb2 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
     dumb3 = torch.zeros((config.agop_batch_size, config.prime)).to(config.device)
@@ -71,7 +95,7 @@ def calc_full_agops(model, loader, config):
 
     return final_agops, final_left_agops, final_agips, final_left_agips
 
-def calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, device, config):
+def _calc_batch_agops(model, inputs, dumb1, dumb2, dumb3, dumb4, dumb5, dumb6, device, config):
     # all of these methods work for computing jacobians, they have different
     # tradeoffs depending on layer and batch sizes, but they can be
     # used interchangeably if one is too slow
