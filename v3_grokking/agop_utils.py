@@ -46,8 +46,9 @@ def calc_full_agop(model, loader, config):
 
 def calc_batch_agop(model, inputs, dumb1, device, config):
     jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0]
-    import ipdb; ipdb.set_trace()
-    jacs = torch.sum(jacs, dim=(1, 2)).reshape(len(inputs), -1)
+    #import ipdb; ipdb.set_trace()
+    #jacs = torch.sum(jacs, dim=(1, 2)).reshape(len(inputs), -1)
+    jacs = torch.sum(jacs, dim=(0, 2))
     agop = jacs.t() @ jacs / len(inputs)
     return agop.detach().cpu()
 

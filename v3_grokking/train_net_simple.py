@@ -67,34 +67,40 @@ def main():
     #X_tr, y_tr, X_te, y_te = held_out_op_mod_p_data(args.operation, args.prime)
 
     X_tr = F.one_hot(X_tr, args.prime).view(-1, 2*args.prime).double()
+    #y_tr_onehot = y_tr.double()
     y_tr_onehot = F.one_hot(y_tr, args.prime).double()
     X_te = F.one_hot(X_te, args.prime).view(-1, 2*args.prime).double()
+    #y_te_onehot = y_te.double()
     y_te_onehot = F.one_hot(y_te, args.prime).double()
 
     train_loader = make_dataloader(X_tr, y_tr_onehot, args.batch_size, shuffle=True, drop_last=False)
     agop_loader = make_dataloader(X_tr.clone(), y_tr_onehot.clone(), args.agop_batch_size, shuffle=False, drop_last=True)
     test_loader = make_dataloader(X_te, y_te_onehot, args.batch_size, shuffle=False, drop_last=False)
 
+    '''
     r = 1
     def sample_data(num_samples):
-        X = np.random.normal(size=(args.agop_batch_size, args.prime))
+        X = np.random.normal(size=(num_samples, args.prime*2))
         y = np.linalg.norm(X[:,:r],axis=1)
         return X, y.reshape(-1, 1)/np.sqrt(r)
 
+    train_size = args.agop_batch_size
     X_train, y_train = sample_data(train_size)
-    X_train = torch.from_numpy(X_train).float()
-    y_train = torch.from_numpy(y_train).float()
+    X_train = torch.from_numpy(X_train).double()
+    y_train = torch.from_numpy(y_train).double()
+    trainset = torch.utils.data.TensorDataset(X_train, y_train)
 
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=train_size, shuffle=False, num_workers=1)
     agop_loader = train_loader
     test_loader = train_loader
+    '''
 
     model = neural_nets.OneLayerFCN(
         num_tokens=args.prime,
         hidden_width=args.hidden_width,
         context_len=2,
         init_scale=args.init_scale,
-        n_classes=1
+        n_classes=args.prime
     ).to(args.device)
 
 

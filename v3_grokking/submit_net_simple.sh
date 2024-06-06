@@ -25,8 +25,8 @@ do
   python train_net_simple.py \
     --wandb_proj_name "june6_test" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
-    --operation "x/y" \
-    --prime 61 \
+    --operation "x+y" \
+    --prime 31 \
     --training_fraction ${i} \
     --batch_size 32 \
     --agop_batch_size 4 \
