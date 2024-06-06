@@ -1,5 +1,28 @@
 import torch
 
+def calc_full_agops_exact(model, loader, config):
+    with torch.no_grad():
+        total_n = 0
+        left_agop_test = 0.0
+        for idx, batch in enumerate(loader):
+            # Copy data to device if needed
+            batch = tuple(t.to(config.device) for t in batch)
+            # Unpack the batch from the loader
+            inputs, labels = batch
+
+            nsamps = inputs.size(0)
+            total_n += nsamps
+
+            hid1 = inputs @ model.fc1.weight.T
+            hid1 = (hid1 > 0).float()
+            # agop = 0.0
+            test1 = model.out.weight.T @ model.out.weight
+            # test2 = model.fc1.weight @ model.fc1.weight.T
+            for jdx in range(hid1.shape[0]):
+                dhid1 = torch.diag(hid1[jdx])
+                left_agop_test += model.fc1.weight.T @ dhid1 @ test1 @ dhid1 @ model.fc1.weight
+        return left_agop_test /= total_n
+
 def calc_full_agops(model, loader, config):
     dumb1 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)
     dumb2 = torch.zeros((config.agop_batch_size, model.hidden_width)).to(config.device)

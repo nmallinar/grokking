@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 #     all_labels = torch.cat(all_labels).numpy()
 #     u_embeddings = mapper.fit_transform(embeddings)
 
-def display_all_agops(agops, per_class_agops, wandb, global_step):
+def display_all_agops(agops, per_class_agops, wandb, global_step, prefix=''):
     plt.clf()
     sqrt_agop = np.real(scipy.linalg.sqrtm(agops[0].numpy()))
     plt.imshow(sqrt_agop)
@@ -30,20 +30,20 @@ def display_all_agops(agops, per_class_agops, wandb, global_step):
         plt,
         caption='sqrt(AGOP)'
     )
-    wandb.log({'sqrt_agop': img}, step=global_step)
+    wandb.log({f'{prefix}sqrt_agop': img}, step=global_step)
 
-    rand_test = per_class_agops[1].numpy() + per_class_agops[30].numpy()
-    sqrt_agop = np.real(scipy.linalg.sqrtm(rand_test))
-    plt.clf()
-    plt.imshow(sqrt_agop)
-    plt.colorbar()
-    img = wandb.Image(
-        plt,
-        caption=f'1+30 test'
-    )
-    wandb.log({
-        f'1+30_test': img
-    }, step=global_step)
+    # rand_test = per_class_agops[1].numpy() + per_class_agops[30].numpy()
+    # sqrt_agop = np.real(scipy.linalg.sqrtm(rand_test))
+    # plt.clf()
+    # plt.imshow(sqrt_agop)
+    # plt.colorbar()
+    # img = wandb.Image(
+    #     plt,
+    #     caption=f'1+30 test'
+    # )
+    # wandb.log({
+    #     f'1+30_test': img
+    # }, step=global_step)
 
     for idx in range(len(per_class_agops)):
         sqrt_agop = np.real(scipy.linalg.sqrtm(per_class_agops[idx].numpy()))
