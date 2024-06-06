@@ -201,14 +201,14 @@ def main():
             # utils.display_all_agops(agops, per_class_agops, wandb, global_step)
 
             agop, per_class_agops = agop_utils.calc_full_agop(model, agop_loader, args)
-            print(agop)
+            #print(agop)
             utils.display_all_agops([agop], per_class_agops, wandb, global_step)
 
             # agops, _, _, _ = agop_utils._calc_full_agops(model, agop_loader, args)
             # utils.display_all_agops(agops, [], wandb, global_step)
 
             agops2 = agop_utils.calc_full_agops_exact(model, agop_loader, args)
-            print(agops2)
+            #print(agops2)
             utils.display_all_agops([agops2], [], wandb, global_step, prefix='exact_')
 
             nfm = model.fc1.weight.data.T @ model.fc1.weight.data

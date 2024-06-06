@@ -57,7 +57,7 @@ def display_all_agops(agops, per_class_agops, wandb, global_step, prefix=''):
     for idx in range(len(per_class_agops)):
         sqrt_agop = np.real(scipy.linalg.sqrtm(per_class_agops[idx].numpy()))
         plt.clf()
-        plt.imshow(sqrt_agop)
+        plt.imshow(sqrt_agop - np.diag(np.diag(sqrt_agop)))
         plt.colorbar()
         img = wandb.Image(
             plt,
