@@ -23,20 +23,20 @@ source ~/envs/torch_jax2/bin/activate
 for i in 0.5;
 do
   python train_net_simple.py \
-    --wandb_proj_name "june6_test" \
+    --wandb_proj_name "june6_test3" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
     --operation "x+y" \
-    --prime 31 \
+    --prime 61 \
     --training_fraction ${i} \
     --batch_size 32 \
     --agop_batch_size 4 \
     --device "cuda" \
     --epochs 3000 \
     --model "OneLayerFCN" \
-    --hidden_width 256 \
-    --init_scale 1.0 \
-    --act_fn "relu" \
-    --learning_rate 1e-3 \
+    --hidden_width 1024 \
+    --init_scale 1e-4 \
+    --act_fn "hermite2" \
+    --learning_rate 1e-2 \
     --weight_decay 1.0 \
     --momentum 0.0 \
     --group_key 'test' 

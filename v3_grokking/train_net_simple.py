@@ -18,9 +18,9 @@ import agop_utils
 import matplotlib.pyplot as plt
 
 torch.set_default_dtype(torch.float64)
-torch.manual_seed(3143)
-random.seed(253)
-np.random.seed(1145)
+#torch.manual_seed(3143)
+#random.seed(253)
+#np.random.seed(1145)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -196,7 +196,7 @@ def main():
                 embeddings = mapper.fit_transform(U.T)
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U.T', 'umap/U.T', global_step)
 
-        if epoch % 100 == 0:
+        if epoch % 500 == 0:
             # agops, _, _, _, per_class_agops = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
             # utils.display_all_agops(agops, per_class_agops, wandb, global_step)
 
@@ -207,12 +207,13 @@ def main():
             # agops, _, _, _ = agop_utils._calc_full_agops(model, agop_loader, args)
             # utils.display_all_agops(agops, [], wandb, global_step)
 
-            agops2 = agop_utils.calc_full_agops_exact(model, agop_loader, args)
+            #agops2 = agop_utils.calc_full_agops_exact(model, agop_loader, args)
             #print(agops2)
-            utils.display_all_agops([agops2], [], wandb, global_step, prefix='exact_')
+            #utils.display_all_agops([agops2], [], wandb, global_step, prefix='exact_')
 
             nfm = model.fc1.weight.data.T @ model.fc1.weight.data
             nfm = nfm.detach().cpu().numpy()
+
             plt.clf()
             plt.imshow(nfm)
             plt.colorbar()
@@ -221,6 +222,7 @@ def main():
                 caption='NFM'
             )
             wandb.log({'NFM': img}, step=global_step)
+            np.save('nfm.npy', nfm)
 
             plt.clf()
             plt.imshow(nfm - np.diag(np.diag(nfm)))

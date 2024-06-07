@@ -31,6 +31,7 @@ def display_all_agops(agops, per_class_agops, wandb, global_step, prefix=''):
         caption='sqrt(AGOP)'
     )
     wandb.log({f'{prefix}sqrt_agop': img}, step=global_step)
+    np.save('sqrt_agop.npy', sqrt_agop)
 
     plt.clf()
     plt.imshow(sqrt_agop - np.diag(np.diag(sqrt_agop)))
@@ -54,7 +55,10 @@ def display_all_agops(agops, per_class_agops, wandb, global_step, prefix=''):
     #     f'1+30_test': img
     # }, step=global_step)
 
+    import os
+    os.makedirs('per_class_out', exist_ok=True)
     for idx in range(len(per_class_agops)):
+        np.save(f'per_class_out/cls_{idx}_agop.npy', per_class_agops[idx].numpy())
         sqrt_agop = np.real(scipy.linalg.sqrtm(per_class_agops[idx].numpy()))
         plt.clf()
         plt.imshow(sqrt_agop - np.diag(np.diag(sqrt_agop)))
@@ -70,11 +74,12 @@ def display_all_agops(agops, per_class_agops, wandb, global_step, prefix=''):
         vals, _ = np.linalg.eig(sqrt_agop)
         vals = np.array(sorted(list(vals))[::-1])
         plt.clf()
-        plt.plot(range(len(vals)), np.log(vals) + 1e-12)
+        #plt.plot(range(len(vals)), np.log(vals) + 1e-12)
+        plt.plot(range(10), np.log(vals[:10]) + 1e-12)
         plt.xlabel('eig idx')
         plt.ylabel('ln(eigs)')
         plt.grid()
-        plt.vlines(4, min(np.log(vals + 1e-12)) - 1, max(np.log(vals + 1e-12)) + 1, color='red', linestyle=':')
+        #plt.vlines(4, min(np.log(vals + 1e-12)) - 1, max(np.log(vals + 1e-12)) + 1, color='red', linestyle=':')
         img = wandb.Image(
             plt,
             caption=f'cls_{idx}, eigs sqrt(AGOP)'

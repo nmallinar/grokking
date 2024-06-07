@@ -50,8 +50,8 @@ def calc_full_agop(model, loader, config):
 
     final_agop /= total_n
     for jdx in range(len(per_class_agops)):
-        per_class_agops[jdx] /= total_n
-    return final_agop, per_class_agops
+        final_per_class_agops[jdx] /= total_n
+    return final_agop, final_per_class_agops
 
 def calc_batch_agop(model, inputs, dumb1, device, config):
     jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0].detach().cpu()
