@@ -196,8 +196,9 @@ def main():
             nfm = model.fc1.weight.data.T @ model.fc1.weight.data
             nfm = nfm.detach().cpu().numpy()
 
-            nfa_corr = np.corrcoef(agop.flatten(), nfm.flatten())
-            nfa_no_diag_corr = np.corrcoef((agop - np.diag(np.diag(agop))).flatten(), (nfm - np.diag(np.diag(nfm))).flatten())
+            sqrt_agop = np.real(scipy.linalg.sqrtm(agop.numpy()))
+            nfa_corr = np.corrcoef(sqrt_agop.flatten(), nfm.flatten())
+            nfa_no_diag_corr = np.corrcoef((sqrt_agop - np.diag(np.diag(sqrt_agop))).flatten(), (nfm - np.diag(np.diag(nfm))).flatten())
             wandb.log({
                 'nfa/nfa_corr': nfa_corr,
                 'nfa/nfa_no_diag_corr': nfa_no_diag_corr
