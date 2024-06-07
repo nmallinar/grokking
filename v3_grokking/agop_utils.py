@@ -26,7 +26,7 @@ def calc_full_agops_exact(model, loader, config):
                 left_agop_test += model.fc1.weight.T @ dhid1 @ test1 @ dhid1 @ model.fc1.weight
         return left_agop_test.detach().cpu() / total_n
 
-def calc_full_agop(model, loader, config):
+def calc_full_agop(model, loader, config, calc_per_class_agops=False):
     dumb1 = torch.zeros((config.agop_batch_size, model.inp_dim)).to(config.device)
     total_n = 0
     final_agop = 0.0
@@ -40,7 +40,7 @@ def calc_full_agop(model, loader, config):
         nsamps = inputs.size(0)
         total_n += nsamps
 
-        agop, per_class_agops = calc_batch_agop(model, inputs, dumb1, config.device, config)
+        agop, per_class_agops = calc_batch_agop(model, inputs, dumb1, config.device, config, calc_per_class_agops=calc_per_class_agops)
         final_agop += agop * nsamps
         for jdx in range(len(per_class_agops)):
             if len(final_per_class_agops) < config.prime:
@@ -53,13 +53,14 @@ def calc_full_agop(model, loader, config):
         final_per_class_agops[jdx] /= total_n
     return final_agop, final_per_class_agops
 
-def calc_batch_agop(model, inputs, dumb1, device, config):
+def calc_batch_agop(model, inputs, dumb1, device, config, calc_per_class_agops=False):
     jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0].detach().cpu()
 
     per_class_agops = []
-    for c_idx in range(config.prime):
-        c_jac = jacs[:,c_idx,:,:].reshape(-1, model.inp_dim)
-        per_class_agops.append(c_jac.t() @ c_jac / len(inputs))
+    if calc_per_class_agops:
+        for c_idx in range(config.prime):
+            c_jac = jacs[:,c_idx,:,:].reshape(-1, model.inp_dim)
+            per_class_agops.append(c_jac.t() @ c_jac / len(inputs))
 
     #import ipdb; ipdb.set_trace()
     #jacs = torch.sum(jacs, dim=(1, 2)).reshape(len(inputs), -1)

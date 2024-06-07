@@ -77,24 +77,6 @@ def main():
     agop_loader = make_dataloader(X_tr.clone(), y_tr_onehot.clone(), args.agop_batch_size, shuffle=False, drop_last=True)
     test_loader = make_dataloader(X_te, y_te_onehot, args.batch_size, shuffle=False, drop_last=False)
 
-    '''
-    r = 1
-    def sample_data(num_samples):
-        X = np.random.normal(size=(num_samples, args.prime*2))
-        y = np.linalg.norm(X[:,:r],axis=1)
-        return X, y.reshape(-1, 1)/np.sqrt(r)
-
-    train_size = args.agop_batch_size
-    X_train, y_train = sample_data(train_size)
-    X_train = torch.from_numpy(X_train).double()
-    y_train = torch.from_numpy(y_train).double()
-    trainset = torch.utils.data.TensorDataset(X_train, y_train)
-
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size=train_size, shuffle=False, num_workers=1)
-    agop_loader = train_loader
-    test_loader = train_loader
-    '''
-
     model = neural_nets.OneLayerFCN(
         num_tokens=args.prime,
         hidden_width=args.hidden_width,
@@ -196,7 +178,7 @@ def main():
                 embeddings = mapper.fit_transform(U.T)
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U.T', 'umap/U.T', global_step)
 
-        if epoch % 500 == 0:
+        if epoch % 100 == 0:
             # agops, _, _, _, per_class_agops = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
             # utils.display_all_agops(agops, per_class_agops, wandb, global_step)
 
@@ -213,6 +195,13 @@ def main():
 
             nfm = model.fc1.weight.data.T @ model.fc1.weight.data
             nfm = nfm.detach().cpu().numpy()
+
+            nfa_corr = np.corrcoef(agop.flatten(), nfm.flatten())
+            nfa_no_diag_corr = np.corrcoef((agop - np.diag(np.diag(agop))).flatten(), (nfm - np.diag(np.diag(nfm))).flatten())
+            wandb.log({
+                'nfa/nfa_corr': nfa_corr,
+                'nfa/nfa_no_diag_corr': nfa_no_diag_corr
+            })
 
             plt.clf()
             plt.imshow(nfm)
