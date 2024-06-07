@@ -204,7 +204,7 @@ def main():
             wandb.log({
                 'nfa/nfa_corr': nfa_corr[0][1],
                 'nfa/nfa_no_diag_corr': nfa_no_diag_corr[0][1]
-            })
+            }, step=global_step)
 
             plt.clf()
             plt.imshow(nfm)
