@@ -200,8 +200,8 @@ def main():
             nfa_corr = np.corrcoef(sqrt_agop.flatten(), nfm.flatten())
             nfa_no_diag_corr = np.corrcoef((sqrt_agop - np.diag(np.diag(sqrt_agop))).flatten(), (nfm - np.diag(np.diag(nfm))).flatten())
             wandb.log({
-                'nfa/nfa_corr': nfa_corr,
-                'nfa/nfa_no_diag_corr': nfa_no_diag_corr
+                'nfa/nfa_corr': nfa_corr[0][1],
+                'nfa/nfa_no_diag_corr': nfa_no_diag_corr[0][1]
             })
 
             plt.clf()
