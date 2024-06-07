@@ -197,6 +197,8 @@ def main():
             nfm = nfm.detach().cpu().numpy()
 
             sqrt_agop = np.real(scipy.linalg.sqrtm(agop.numpy()))
+            np.save(os.path.join(out_dir, 'sqrt_agop.npy'), sqrt_agop)
+
             nfa_corr = np.corrcoef(sqrt_agop.flatten(), nfm.flatten())
             nfa_no_diag_corr = np.corrcoef((sqrt_agop - np.diag(np.diag(sqrt_agop))).flatten(), (nfm - np.diag(np.diag(nfm))).flatten())
             wandb.log({
@@ -212,7 +214,7 @@ def main():
                 caption='NFM'
             )
             wandb.log({'NFM': img}, step=global_step)
-            np.save('nfm.npy', nfm)
+            np.save(os.path.join(out_dir, 'nfm.npy'), nfm)
 
             plt.clf()
             plt.imshow(nfm - np.diag(np.diag(nfm)))

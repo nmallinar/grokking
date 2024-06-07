@@ -31,7 +31,6 @@ def display_all_agops(agops, per_class_agops, wandb, global_step, prefix=''):
         caption='sqrt(AGOP)'
     )
     wandb.log({f'{prefix}sqrt_agop': img}, step=global_step)
-    np.save('sqrt_agop.npy', sqrt_agop)
 
     plt.clf()
     plt.imshow(sqrt_agop - np.diag(np.diag(sqrt_agop)))
