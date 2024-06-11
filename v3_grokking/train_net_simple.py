@@ -121,6 +121,10 @@ def main():
             loss = criterion(output, labels)
             base_loss = loss.clone()
             loss += args.agop_decay * torch.trace(agop)
+
+            weight_norm_fc1 = torch.linalg.norm(model.fc1.weight.data).detach()
+            weight_norm_out = torch.linalg.norm(model.out.weight.data).detach()
+
             loss.backward()
             optimizer.step()
 
@@ -129,6 +133,8 @@ def main():
                 'training/loss': loss,
                 'training/mse_loss': base_loss,
                 'training/tr_agop': torch.trace(agop.detach()),
+                'training/w_norm_fc1': weight_norm_fc1,
+                'training/w_norm_out': weight_norm_out,
                 'epoch': epoch
             }, step=global_step)
 
