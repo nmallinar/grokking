@@ -39,7 +39,7 @@ class OneLayerFCN(torch.nn.Module):
     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(self.fc1.weight, -init_scale*bound, init_scale*bound)
-    
+
     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.out.weight)
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
@@ -47,7 +47,7 @@ class OneLayerFCN(torch.nn.Module):
     #nn.init.uniform_(self.fc2.weight, -init_scale*bound, init_scale*bound)
     #nn.init.uniform_(self.fc3.weight, -init_scale*bound, init_scale*bound)
     #nn.init.uniform_(self.fc4.weight, -init_scale*bound, init_scale*bound)
-    
+
     # scaled kaiming normal code:
     '''
     leaky_neg_slope = 0.
@@ -111,9 +111,6 @@ class OneLayerFCN(torch.nn.Module):
           return self.out(x)
 
       x = act_fn(self.fc1(x) + dumb1 @ self.fc1.weight.t())
-      #x = self.fc2(x)
-      #x = self.fc3(x)
-      #x = self.fc4(x)
       x = self.out(x)
       return x
 

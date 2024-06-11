@@ -38,6 +38,7 @@ do
     --act_fn "pow2" \
     --learning_rate 1e-3 \
     --weight_decay 1.0 \
+    --agop_decay 0.0 \
     --momentum 0.0 \
-    --group_key 'test' 
+    --group_key 'test'
 done

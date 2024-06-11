@@ -2,7 +2,7 @@ import torch
 import math
 torch.set_default_dtype(torch.float64)
 
-def calc_full_agops_exact(model, loader, config):
+def calc_full_agops_exact(model, loader, config, detach=True):
     with torch.no_grad():
         total_n = 0
         left_agop_test = 0.0
@@ -24,9 +24,11 @@ def calc_full_agops_exact(model, loader, config):
             for jdx in range(hid1.shape[0]):
                 dhid1 = torch.diag(hid1[jdx])
                 left_agop_test += model.fc1.weight.T @ dhid1 @ test1 @ dhid1 @ model.fc1.weight
-        return left_agop_test.detach().cpu() / total_n
+        if detach:
+            return left_agop_test.detach().cpu() / total_n
+        return left_agop_test / total_n
 
-def calc_full_agop(model, loader, config, calc_per_class_agops=False):
+def calc_full_agop(model, loader, config, calc_per_class_agops=False, detach=True):
     dumb1 = torch.zeros((config.agop_batch_size, model.inp_dim)).to(config.device)
     total_n = 0
     final_agop = 0.0
@@ -40,7 +42,8 @@ def calc_full_agop(model, loader, config, calc_per_class_agops=False):
         nsamps = inputs.size(0)
         total_n += nsamps
 
-        agop, per_class_agops = calc_batch_agop(model, inputs, dumb1, config.device, config, calc_per_class_agops=calc_per_class_agops)
+        agop, per_class_agops = calc_batch_agop(model, inputs, dumb1, config.device, config, calc_per_class_agops=calc_per_class_agops,
+                                                detach=detach)
         final_agop += agop * nsamps
         for jdx in range(len(per_class_agops)):
             if len(final_per_class_agops) < config.prime:
@@ -53,8 +56,11 @@ def calc_full_agop(model, loader, config, calc_per_class_agops=False):
         final_per_class_agops[jdx] /= total_n
     return final_agop, final_per_class_agops
 
-def calc_batch_agop(model, inputs, dumb1, device, config, calc_per_class_agops=False):
-    jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0].detach().cpu()
+def calc_batch_agop(model, inputs, dumb1, device, config, calc_per_class_agops=False, detach=True):
+    if detach:
+        jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0].detach().cpu()
+    else:
+        jacs = torch.func.jacfwd(model.forward, argnums=(1,))(inputs, dumb1, config.act_fn)[0]
 
     per_class_agops = []
     if calc_per_class_agops:

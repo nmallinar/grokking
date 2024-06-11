@@ -44,6 +44,7 @@ def main():
 
     parser.add_argument('--learning_rate', default=1e-3, type=float)
     parser.add_argument('--weight_decay', default=0.0, type=float)
+    parser.add_argument('--agop_decay', default=0.0, type=float)
     parser.add_argument('--momentum', default=0.0, type=float)
 
     parser.add_argument('--viz_umap', default=False, action='store_true')
@@ -110,17 +111,24 @@ def main():
 
             optimizer.zero_grad()
             output = model(inputs, act=args.act_fn)
+            agop, _ = agop_utils.calc_full_agop(model, agop_loader, args, calc_per_class_agops=False,
+                                                              detach=False)
+
 
             count = (output.argmax(-1) == labels.argmax(-1)).sum()
             acc = count / output.shape[0]
 
             loss = criterion(output, labels)
+            base_loss = loss.clone()
+            loss += args.agop_decay * torch.trace(agop)
             loss.backward()
             optimizer.step()
 
             wandb.log({
                 'training/accuracy': acc,
                 'training/loss': loss,
+                'training/mse_loss': base_loss,
+                'training/tr_agop': torch.trace(agop.detach()),
                 'epoch': epoch
             }, step=global_step)
 
