@@ -23,9 +23,9 @@ source ~/envs/torch_jax2/bin/activate
 for i in 0.5;
 do
   python train_net_simple.py \
-    --wandb_proj_name "june6_test3" \
+    --wandb_proj_name "june6_test4" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
-    --operation "x+y" \
+    --operation "x/y" \
     --prime 61 \
     --training_fraction ${i} \
     --batch_size 32 \
@@ -34,9 +34,9 @@ do
     --epochs 3000 \
     --model "OneLayerFCN" \
     --hidden_width 1024 \
-    --init_scale 1e-4 \
-    --act_fn "hermite2" \
-    --learning_rate 1e-2 \
+    --init_scale 1.0 \
+    --act_fn "pow2" \
+    --learning_rate 1e-3 \
     --weight_decay 1.0 \
     --momentum 0.0 \
     --group_key 'test' 

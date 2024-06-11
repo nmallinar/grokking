@@ -23,6 +23,9 @@ class OneLayerFCN(torch.nn.Module):
     self.init_scale = init_scale
 
     self.fc1 = nn.Linear(inp_dim, hidden_width, bias=False)
+    #self.fc2 = nn.Linear(hidden_width, hidden_width, bias=False)
+    #self.fc3 = nn.Linear(hidden_width, hidden_width, bias=False)
+    #self.fc4 = nn.Linear(hidden_width, hidden_width, bias=False)
     self.out = nn.Linear(hidden_width, n_classes, bias=False)
 
     self.reset_params(init_scale=init_scale)
@@ -41,6 +44,10 @@ class OneLayerFCN(torch.nn.Module):
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(self.out.weight, -init_scale*bound, init_scale*bound)
 
+    #nn.init.uniform_(self.fc2.weight, -init_scale*bound, init_scale*bound)
+    #nn.init.uniform_(self.fc3.weight, -init_scale*bound, init_scale*bound)
+    #nn.init.uniform_(self.fc4.weight, -init_scale*bound, init_scale*bound)
+    
     # scaled kaiming normal code:
     '''
     leaky_neg_slope = 0.
@@ -104,6 +111,9 @@ class OneLayerFCN(torch.nn.Module):
           return self.out(x)
 
       x = act_fn(self.fc1(x) + dumb1 @ self.fc1.weight.t())
+      #x = self.fc2(x)
+      #x = self.fc3(x)
+      #x = self.fc4(x)
       x = self.out(x)
       return x
 
