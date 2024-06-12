@@ -194,6 +194,9 @@ def main():
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U.T', 'umap/U.T', global_step)
 
         if epoch % 5 == 0:
+            ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
+            os.makedirs(ep_out_dir, exist_ok=True)
+
             # agops, _, _, _, per_class_agops = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
             # utils.display_all_agops(agops, per_class_agops, wandb, global_step)
 
@@ -212,7 +215,7 @@ def main():
             nfm = nfm.detach().cpu().numpy()
 
             sqrt_agop = np.real(scipy.linalg.sqrtm(agop.numpy()))
-            np.save(os.path.join(out_dir, 'sqrt_agop.npy'), sqrt_agop)
+            np.save(os.path.join(ep_out_dir, 'sqrt_agop.npy'), sqrt_agop)
 
             nfa_corr = np.corrcoef(sqrt_agop.flatten(), nfm.flatten())
             nfa_no_diag_corr = np.corrcoef((sqrt_agop - np.diag(np.diag(sqrt_agop))).flatten(), (nfm - np.diag(np.diag(nfm))).flatten())
@@ -229,7 +232,7 @@ def main():
                 caption='NFM'
             )
             wandb.log({'NFM': img}, step=global_step)
-            np.save(os.path.join(out_dir, 'nfm.npy'), nfm)
+            np.save(os.path.join(ep_out_dir, 'nfm.npy'), nfm)
 
             plt.clf()
             plt.imshow(nfm - np.diag(np.diag(nfm)))
