@@ -23,10 +23,10 @@ source ~/envs/torch_jax2/bin/activate
 for i in 0.5;
 do
   python train_net_simple.py \
-    --wandb_proj_name "june6_test4" \
+    --wandb_proj_name "june11_agop_decay" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
-    --operation "x/y" \
-    --prime 61 \
+    --operation "x+y" \
+    --prime 47 \
     --training_fraction ${i} \
     --batch_size 32 \
     --agop_batch_size 4 \
@@ -35,10 +35,10 @@ do
     --model "OneLayerFCN" \
     --hidden_width 1024 \
     --init_scale 1.0 \
-    --act_fn "pow2" \
+    --act_fn "relu" \
     --learning_rate 1e-3 \
-    --weight_decay 1.0 \
-    --agop_decay 0.0 \
+    --weight_decay 0.0 \
+    --agop_decay 1.0 \
     --momentum 0.0 \
     --group_key 'test'
 done

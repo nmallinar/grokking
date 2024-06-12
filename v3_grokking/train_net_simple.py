@@ -121,6 +121,7 @@ def main():
             loss = criterion(output, labels)
             base_loss = loss.clone()
             loss += args.agop_decay * torch.trace(agop)
+            loss += args.agop_decay * torch.linalg.norm(model.out.weight.data)
 
             weight_norm_fc1 = torch.linalg.norm(model.fc1.weight.data).detach()
             weight_norm_out = torch.linalg.norm(model.out.weight.data).detach()
@@ -192,7 +193,7 @@ def main():
                 embeddings = mapper.fit_transform(U.T)
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U.T', 'umap/U.T', global_step)
 
-        if epoch % 100 == 0:
+        if epoch % 5 == 0:
             # agops, _, _, _, per_class_agops = agop_utils.calc_full_agops_per_class(model, agop_loader, args)
             # utils.display_all_agops(agops, per_class_agops, wandb, global_step)
 
