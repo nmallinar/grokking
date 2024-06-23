@@ -1,5 +1,4 @@
 import os
-os.environ['NUMBA_NUM_THREADS']  = '1'
 import sys
 import argparse
 import wandb
@@ -7,8 +6,9 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import scipy
+import math
 import random
-import umap
+from sklearn.metrics import top_k_accuracy_score
 
 from data import operation_mod_p_data, make_data_splits, held_out_op_mod_p_data
 from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk, \
@@ -18,13 +18,18 @@ import utils
 import matplotlib.pyplot as plt
 
 torch.set_default_dtype(torch.float64)
-# torch.manual_seed(3143)
-# random.seed(253)
-# np.random.seed(1145)
+torch.manual_seed(3143)
+random.seed(253)
+np.random.seed(1145)
 
 def eval(sol, K, y_onehot):
     preds = K.T @ sol
     loss = (preds - y_onehot).pow(2).mean()
+    labels = y_onehot.argmax(-1)
+    single_logit_loss = 0.0
+    for idx in range(len(labels)):
+        single_logit_loss += (preds[idx][labels[idx]] - 1).pow(2)
+    single_logit_loss /= labels.shape[0]
 
     corr = 0
     if y_onehot.shape[1] > 1:
@@ -36,7 +41,7 @@ def eval(sol, K, y_onehot):
     else:
         acc = 0.0
 
-    return acc, loss, corr
+    return acc, loss, corr, single_logit_loss
 
 def get_test_kernel(X_tr, X_te, M, bandwidth, ntk_depth, kernel_type):
     K_test = None
@@ -127,6 +132,20 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
 
     return sol, K_train, dist
 
+def map_corr(y1, y2):
+    # (n,p), (n,p)
+    y1_mean = np.mean(y1,axis=1)[:,None]
+    y2_mean = np.mean(y2,axis=1)[:,None]
+    y1_c = y1 - y1_mean
+    y2_c = y2 - y2_mean
+
+    covs = np.squeeze(y1_c[:,None,:]@y2_c[:,:,None]) # (n,1,1)
+
+    den1 = np.squeeze(y1_c[:,None,:]@y1_c[:,:,None])
+    den2 = np.squeeze(y2_c[:,None,:]@y2_c[:,:,None])
+
+    return np.mean(covs / den1**0.5 / den2**0.5)
+
 def update(samples, centers, bandwidth, M, weights, K, dist, \
            kernel_type, ntk_depth, centers_bsize=-1, centering=False,
            agop_power=0.5, agip_power=1.0):
@@ -134,73 +153,22 @@ def update(samples, centers, bandwidth, M, weights, K, dist, \
         M, Mc = laplace_kernel.laplacian_M_update(samples, centers, bandwidth, M, weights, K=K, dist=dist, \
                                    centers_bsize=centers_bsize, centering=centering)
     elif kernel_type == 'gaussian':
-        M, Mc, per_class_agops = gaussian_kernel.gaussian_M_update(samples, centers, bandwidth, M, weights, K=K, \
+        M, Mc = gaussian_kernel.gaussian_M_update(samples, centers, bandwidth, M, weights, K=K, \
                               centers_bsize=centers_bsize, centering=centering, agop_power=agop_power,
-                              agip_power=agip_power, return_per_class_agop=True)
+                              agip_power=agip_power)
     elif kernel_type == 'fcn_relu_ntk':
         M, Mc = torch_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
     elif kernel_type == 'jax_fcn_ntk':
         M, Mc = jax_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
     elif kernel_type == 'quadratic':
-        M, Mc, per_class_agops = quadratic_kernel.quad_M_update(samples, centers, weights.T, M, centering=centering,
-                                                                return_per_class_agop=True)
+        M, Mc = quadratic_kernel.quad_M_update(samples, centers, weights.T, M, centering=centering)
     elif kernel_type == 'general_quadratic':
         M, Mc = quadratic_kernel.general_quadratic_M_update(samples, centers, weights.T, M, centering=centering)
 
-    return M, Mc, per_class_agops
+    return M, Mc
 
 def compute_train_class_freqs(y_tr):
     return y_tr.T @ y_tr / y_tr.shape[0]
-
-def viz_umap_embeddings(X_tr, X_te, M, p, step):
-    mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
-                       metric='euclidean', n_components=2)
-    Xs = np.arange(0, p)
-    Xs = F.one_hot(torch.from_numpy(Xs), p).double()
-    embs = Xs @ M[:p,p:]
-    embs = mapper.fit_transform(embs)
-    plt.clf()
-    fig, ax = plt.subplots()
-    ax.scatter(
-        embs[:,0],
-        embs[:,1]
-    )
-    for i, txt in enumerate(np.arange(0, p)):
-        ax.annotate(txt, (embs[:,0][i], embs[:,1][i]))
-
-    img = wandb.Image(
-        plt,
-        caption='umap_digit_embs'
-    )
-    wandb.log({'umap/digit_embs': img}, step=step)
-
-    tr_emb = X_tr @ M
-    te_emb = X_te @ M
-
-    tr_emb = mapper.fit_transform(tr_emb)
-    te_emb = mapper.fit_transform(te_emb)
-
-    plt.clf()
-    plt.scatter(
-        tr_emb[:,0],
-        tr_emb[:,1]
-    )
-    img = wandb.Image(
-        plt,
-        caption='tr_umap'
-    )
-    wandb.log({'umap/tr_umap': img}, step=step)
-
-    plt.clf()
-    plt.scatter(
-        te_emb[:,0],
-        te_emb[:,1]
-    )
-    img = wandb.Image(
-        plt,
-        caption='te_umap'
-    )
-    wandb.log({'umap/te_umap': img}, step=step)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -263,6 +231,14 @@ def main():
     # X_tr = torch.cat((X_tr, X_te))
     # y_tr_onehot = torch.cat((y_tr_onehot, y_te_onehot))
 
+    # rand_points = torch.rand(10000, 2*args.prime)
+    # rand_points /= torch.linalg.norm(rand_points, dim=-1).unsqueeze(-1)
+
+    indices = torch.randint(0, 2*args.prime, (100,4))
+    rand_points = torch.zeros(100, 2*args.prime)
+    rand_points.scatter_(1, indices, 1.)
+    rand_points /= torch.linalg.norm(rand_points, dim=-1).unsqueeze(-1) * math.sqrt(2)
+
     class_covariance = compute_train_class_freqs(y_tr_onehot)
 
     M = torch.eye(X_tr.shape[1]).double()
@@ -276,45 +252,77 @@ def main():
                                    ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,
                                    use_k_inv=args.use_k_inv)
 
-        acc, loss, corr = eval(sol, K_train, y_tr_onehot)
+        acc, loss, corr, single_logit_loss = eval(sol, K_train, y_tr_onehot)
         print(f'Round {rfm_iter} Train MSE:\t{loss}')
         print(f'Round {rfm_iter} Train Acc:\t{acc}')
         wandb.log({
             'training/accuracy': acc,
-            'training/loss': loss
+            'training/loss': loss,
+            'training/single_logit_loss': single_logit_loss
         }, step=rfm_iter)
 
         K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
 
-        acc, loss, corr = eval(sol, K_test, y_te_onehot)
+        acc, loss, corr, single_logit_loss = eval(sol, K_test, y_te_onehot)
         print(f'Round {rfm_iter} Test MSE:\t{loss}')
         print(f'Round {rfm_iter} Test Acc:\t{acc}')
         print()
 
+        K_rand = get_test_kernel(X_tr, rand_points, M, args.bandwidth, args.ntk_depth, args.kernel_type)
+        rand_preds = K_rand.T @ sol
+
+
+        sol2, _, _ = solve(X_tr, y_tr_onehot, newM, Mc, args.bandwidth, args.ntk_depth, args.kernel_type,
+                                   ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,
+                                   use_k_inv=args.use_k_inv)
+
+        K_rand2 = get_test_kernel(X_tr, rand_points, newM, args.bandwidth, args.ntk_depth, args.kernel_type)
+        rand_preds2 = K_rand2.T @ sol2
+
+        # print('SAMP 0 ====')
+        # print(rand_preds[0])
+        # print(out[0])
+        #
+        # print('SAMP 432 ====')
+        # print(rand_preds[432])
+        # print(out[432])
+        #
+
+        dft = 1./math.sqrt(args.prime) * np.fft.fft(np.eye(args.prime))
+        out = np.conjugate((dft @ rand_points.numpy()[:,:args.prime].T) * (dft @ rand_points.numpy()[:,args.prime:].T)).T @ dft * math.sqrt(args.prime)
+
+        # out: (10k, p)
+        # rand_preds: (10k, p)
+        numer = np.abs(out * np.conjugate(rand_preds.numpy())).mean(axis=0)
+        denom = np.sqrt(np.mean(np.power(np.abs(out), 2), axis=0) * np.mean(np.power(np.abs(rand_preds.numpy()), 2), axis=0))
+        corr = np.mean(numer / denom)
+
         wandb.log({
             'validation/accuracy': acc,
-            'validation/loss': loss
+            'validation/loss': loss,
+            'validation/single_logit_loss': single_logit_loss,
+            'validation/fmm_corr': corr
         }, step=rfm_iter)
 
-        M, Mc, per_class_agops = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
+        M_new, Mc_new = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
                        args.kernel_type, args.ntk_depth, centers_bsize=-1, centering=True,
                        agop_power=args.agop_power, agip_power=args.agip_power)
-        #
-        # if args.use_ema:
-        #     # use exponential moving average
-        #     M = ema_alpha * M_new + (1 - ema_alpha) * M
-        #     Mc = ema_alpha * Mc_new + (1 - ema_alpha) * Mc
-        # else:
-        #     # use simple moving average
-        #     if len(Ms) == args.agop_sma_size:
-        #         Ms.pop(0)
-        #         Mcs.pop(0)
-        #
-        #     Ms.append(M_new)
-        #     Mcs.append(Mc_new)
-        #
-        #     M = torch.mean(torch.stack(Ms), dim=0)
-        #     Mc = torch.mean(torch.stack(Mcs), dim=0)
+
+        if args.use_ema:
+            # use exponential moving average
+            M = ema_alpha * M_new + (1 - ema_alpha) * M
+            Mc = ema_alpha * Mc_new + (1 - ema_alpha) * Mc
+        else:
+            # use simple moving average
+            if len(Ms) == args.agop_sma_size:
+                Ms.pop(0)
+                Mcs.pop(0)
+
+            Ms.append(M_new)
+            Mcs.append(Mc_new)
+
+            M = torch.mean(torch.stack(Ms), dim=0)
+            Mc = torch.mean(torch.stack(Mcs), dim=0)
 
         with torch.no_grad():
             wandb.log({
@@ -322,24 +330,33 @@ def main():
                 'training/agip_tr': torch.trace(Mc)
             }, step=rfm_iter)
 
-        # if (rfm_iter < 31) or \
-        if (rfm_iter < 100 and rfm_iter % 25 == 0) or \
+        if (rfm_iter < 51) or \
+            (rfm_iter < 100 and rfm_iter % 25 == 0) or \
             (rfm_iter < 500 and rfm_iter % 50 == 0):
 
             if args.save_agops:
                 os.makedirs(os.path.join(out_dir, f'iter_{rfm_iter}'), exist_ok=True)
                 np.save(os.path.join(out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
-                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
+                # np.save(os.path.join(out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
+                sol, K_train, dist = solve(X_tr, y_tr_onehot, M, Mc, args.bandwidth, args.ntk_depth, args.kernel_type,
+                                           ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,
+                                           use_k_inv=args.use_k_inv)
+                K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
 
-                subdir = os.path.join(out_dir, f'iter_{rfm_iter}', 'per_class_agops')
-                os.makedirs(subdir, exist_ok=True)
-                for cls_idx in range(len(per_class_agops)):
-                    np.save(os.path.join(subdir, f'M_cls_{cls_idx}.npy'), per_class_agops[cls_idx].numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/K_train.npy'), K_train.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/K_test.npy'), K_test.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/sol.npy'), sol.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/X_tr.npy'), X_tr.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/y_tr_onehot.npy'), y_tr_onehot.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/X_te.npy'), X_te.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/y_te_onehot.npy'), y_te_onehot.numpy())
+
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/K_rand.npy'), K_rand.numpy())
+                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/rand_points.npy'), rand_points.numpy())
+
 
             # if using WANDB we will log images of M, Mc and their spectra
             if not args.wandb_offline:
-                # viz_umap_embeddings(X_tr, X_te, M, args.prime, rfm_iter)
-
                 plt.clf()
                 plt.imshow(M)
                 plt.colorbar()
@@ -357,16 +374,6 @@ def main():
                     caption=f'M_no_diag'
                 )
                 wandb.log({'M_no_diag': img}, step=rfm_iter)
-
-                for cls_idx in range(len(per_class_agops)):
-                    plt.clf()
-                    plt.imshow(per_class_agops[cls_idx] - torch.diag(torch.diag(per_class_agops[cls_idx])))
-                    plt.colorbar()
-                    img = wandb.Image(
-                        plt,
-                        caption=f'cls_{cls_idx} M_no_diag'
-                    )
-                    wandb.log({f'per_class/{cls_idx}_M_no_diag': img}, step=rfm_iter)
 
                 # plt.clf()
                 # plt.imshow(Mc)

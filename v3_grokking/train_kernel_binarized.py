@@ -1,5 +1,4 @@
 import os
-os.environ['NUMBA_NUM_THREADS']  = '1'
 import sys
 import argparse
 import wandb
@@ -8,9 +7,9 @@ import torch.nn.functional as F
 import numpy as np
 import scipy
 import random
-import umap
 
-from data import operation_mod_p_data, make_data_splits, held_out_op_mod_p_data
+from data import operation_mod_p_data, make_data_splits, held_out_op_mod_p_data, \
+                 operation_mod_p_data_binarized
 from models import laplace_kernel, gaussian_kernel, torch_fcn_relu_ntk, \
                    jax_fcn_relu_ntk, quadratic_kernel
 import utils
@@ -21,6 +20,32 @@ torch.set_default_dtype(torch.float64)
 # torch.manual_seed(3143)
 # random.seed(253)
 # np.random.seed(1145)
+
+def eval_clfs(sols, Ks, y_onehot, cls_labels):
+    per_class_logits = []
+    per_class_accs = {}
+    per_class_losses = {}
+    for cls in sorted(sols.keys()):
+        preds = (Ks[cls].T @ sols[cls]).squeeze()
+        cls_preds = (preds > 0.0).long()
+        cls_preds[cls_preds == 0] = -1
+        per_class_losses[cls] = (preds - cls_labels[cls]).pow(2).mean()
+        per_class_accs[cls] = torch.sum(cls_preds == cls_labels[cls]) / y_onehot.shape[0]
+        per_class_logits.append(preds)
+
+    per_class_logits = torch.stack(per_class_logits, axis=1).squeeze()
+    loss = (per_class_logits - y_onehot).pow(2).mean()
+    count = torch.sum(per_class_logits.argmax(-1) == y_onehot.argmax(-1))
+    acc = count / y_onehot.shape[0]
+    return acc, loss, per_class_accs, per_class_losses
+
+    # accs, losses = {}, {}
+    # for cls in sols.keys():
+    #     acc, loss, _ = eval(sols[cls], Ks[cls], y_onehots[cls])
+    #     accs[cls] = acc
+    #     losses[cls] = loss
+
+    # return accs, losses
 
 def eval(sol, K, y_onehot):
     preds = K.T @ sol
@@ -55,7 +80,7 @@ def get_test_kernel(X_tr, X_te, M, bandwidth, ntk_depth, kernel_type):
 
     return K_test
 
-def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
+def solve(X_tr, y_tr_onehot, M, bandwidth, ntk_depth, kernel_type,
           ridge=1e-3, jac_reg_weight=0.0, agip_rdx_weight=0.0, use_k_inv=True):
 
     K_train = None
@@ -127,23 +152,32 @@ def solve(X_tr, y_tr_onehot, M, Mc, bandwidth, ntk_depth, kernel_type,
 
     return sol, K_train, dist
 
+def update_clfs(X_tr, Ms, sols, K_trains, dists, args):
+    newMs = {}
+    for cls in sols.keys():
+        M, Mc, per_class_agops = update(X_tr, X_tr, args.bandwidth, Ms[cls], sols[cls], K_trains[cls], dists[cls], \
+                       args.kernel_type, args.ntk_depth, centers_bsize=-1, centering=True,
+                       agop_power=args.agop_power, agip_power=args.agip_power, return_per_class_agop=False)
+        newMs[cls] = M
+    return newMs
+
 def update(samples, centers, bandwidth, M, weights, K, dist, \
            kernel_type, ntk_depth, centers_bsize=-1, centering=False,
-           agop_power=0.5, agip_power=1.0):
+           agop_power=0.5, agip_power=1.0, return_per_class_agop=False):
     if kernel_type == 'laplace':
         M, Mc = laplace_kernel.laplacian_M_update(samples, centers, bandwidth, M, weights, K=K, dist=dist, \
                                    centers_bsize=centers_bsize, centering=centering)
     elif kernel_type == 'gaussian':
         M, Mc, per_class_agops = gaussian_kernel.gaussian_M_update(samples, centers, bandwidth, M, weights, K=K, \
                               centers_bsize=centers_bsize, centering=centering, agop_power=agop_power,
-                              agip_power=agip_power, return_per_class_agop=True)
+                              agip_power=agip_power, return_per_class_agop=return_per_class_agop)
     elif kernel_type == 'fcn_relu_ntk':
         M, Mc = torch_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
     elif kernel_type == 'jax_fcn_ntk':
         M, Mc = jax_fcn_relu_ntk.ntk_relu_M_update(weights, centers, samples, M, ntk_depth=ntk_depth)
     elif kernel_type == 'quadratic':
-        M, Mc, per_class_agops = quadratic_kernel.quad_M_update(samples, centers, weights.T, M, centering=centering,
-                                                                return_per_class_agop=True)
+        M, Mc, per_class_agops = quadratic_kernel.quad_M_update(samples, centers, weights.T, M, centering=centering, \
+                                                                return_per_class_agop=return_per_class_agop)
     elif kernel_type == 'general_quadratic':
         M, Mc = quadratic_kernel.general_quadratic_M_update(samples, centers, weights.T, M, centering=centering)
 
@@ -152,55 +186,19 @@ def update(samples, centers, bandwidth, M, weights, K, dist, \
 def compute_train_class_freqs(y_tr):
     return y_tr.T @ y_tr / y_tr.shape[0]
 
-def viz_umap_embeddings(X_tr, X_te, M, p, step):
-    mapper = umap.UMAP(n_neighbors=15, min_dist=0.1,
-                       metric='euclidean', n_components=2)
-    Xs = np.arange(0, p)
-    Xs = F.one_hot(torch.from_numpy(Xs), p).double()
-    embs = Xs @ M[:p,p:]
-    embs = mapper.fit_transform(embs)
-    plt.clf()
-    fig, ax = plt.subplots()
-    ax.scatter(
-        embs[:,0],
-        embs[:,1]
-    )
-    for i, txt in enumerate(np.arange(0, p)):
-        ax.annotate(txt, (embs[:,0][i], embs[:,1][i]))
+def fit_binary_clfs(X_tr, cls_labels, Ms, args):
+    sols = {}
+    K_trains = {}
+    dists = {}
+    for cls in cls_labels.keys():
+        sol, K_train, dist = solve(X_tr, cls_labels[cls], Ms[cls], args.bandwidth, args.ntk_depth, args.kernel_type,
+                                   ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,
+                                   use_k_inv=args.use_k_inv)
+        sols[cls] = sol.unsqueeze(-1)
+        K_trains[cls] = K_train
+        dists[cls] = dist
 
-    img = wandb.Image(
-        plt,
-        caption='umap_digit_embs'
-    )
-    wandb.log({'umap/digit_embs': img}, step=step)
-
-    tr_emb = X_tr @ M
-    te_emb = X_te @ M
-
-    tr_emb = mapper.fit_transform(tr_emb)
-    te_emb = mapper.fit_transform(te_emb)
-
-    plt.clf()
-    plt.scatter(
-        tr_emb[:,0],
-        tr_emb[:,1]
-    )
-    img = wandb.Image(
-        plt,
-        caption='tr_umap'
-    )
-    wandb.log({'umap/tr_umap': img}, step=step)
-
-    plt.clf()
-    plt.scatter(
-        te_emb[:,0],
-        te_emb[:,1]
-    )
-    img = wandb.Image(
-        plt,
-        caption='te_umap'
-    )
-    wandb.log({'umap/te_umap': img}, step=step)
+    return sols, K_trains, dists
 
 def main():
     parser = argparse.ArgumentParser()
@@ -247,46 +245,39 @@ def main():
                      f'jac_reg_weight: {args.jac_reg_weight}, ridge: {args.ridge}, bdwth: {args.bandwidth}, ' + \
                      f'agip_rdx_weight: {args.agip_rdx_weight}, agop_sma_size: {args.agop_sma_size}'
 
-    all_inputs, all_labels = operation_mod_p_data(args.operation, args.prime)
-    X_tr, y_tr, X_te, y_te = make_data_splits(all_inputs, all_labels, args.training_fraction)
+    X_tr, cls_labels, y_tr_onehot, X_te, te_cls_labels, y_te_onehot = operation_mod_p_data_binarized(args.operation, args.prime, args.training_fraction)
 
-    # X_tr, y_tr, X_te, y_te = held_out_op_mod_p_data(args.operation, args.prime)
+    Ms = {}
+    for idx in range(args.prime):
+        Ms[idx] = torch.eye(X_tr.shape[1]).double()
+    # M = torch.eye(X_tr.shape[1]).double()
+    # Mc = torch.eye(y_tr_onehot.shape[1]).double()
 
-    X_tr = F.one_hot(X_tr, args.prime).view(-1, 2*args.prime).double()
-    y_tr_onehot = F.one_hot(y_tr, args.prime).double()
-    # y_tr_onehot = y_tr.view(-1, 1).double()
-
-    X_te = F.one_hot(X_te, args.prime).view(-1, 2*args.prime).double()
-    y_te_onehot = F.one_hot(y_te, args.prime).double()
-    # y_te_onehot = y_te.view(-1, 1).double()
-
-    # X_tr = torch.cat((X_tr, X_te))
-    # y_tr_onehot = torch.cat((y_tr_onehot, y_te_onehot))
-
-    class_covariance = compute_train_class_freqs(y_tr_onehot)
-
-    M = torch.eye(X_tr.shape[1]).double()
-    Mc = torch.eye(y_tr_onehot.shape[1]).double()
-
-    Ms = []
     Mcs = []
     ema_alpha = args.ema_alpha
     for rfm_iter in range(args.iters):
-        sol, K_train, dist = solve(X_tr, y_tr_onehot, M, Mc, args.bandwidth, args.ntk_depth, args.kernel_type,
-                                   ridge=args.ridge, jac_reg_weight=args.jac_reg_weight, agip_rdx_weight=args.agip_rdx_weight,
-                                   use_k_inv=args.use_k_inv)
+        sols, K_trains, dists = fit_binary_clfs(X_tr, cls_labels, Ms, args)
 
-        acc, loss, corr = eval(sol, K_train, y_tr_onehot)
+        acc, loss, per_class_accs, per_class_losses = eval_clfs(sols, K_trains, y_tr_onehot, cls_labels)
         print(f'Round {rfm_iter} Train MSE:\t{loss}')
         print(f'Round {rfm_iter} Train Acc:\t{acc}')
         wandb.log({
-            'training/accuracy': acc,
-            'training/loss': loss
+            f'training/accuracy': acc,
+            f'training/loss': loss
         }, step=rfm_iter)
 
-        K_test = get_test_kernel(X_tr, X_te, M, args.bandwidth, args.ntk_depth, args.kernel_type)
+        K_tests = {}
+        for cls in range(args.prime):
+            # print(f'Round {rfm_iter} Train Class {cls} MSE:\t{losses[cls]}')
+            # print(f'Round {rfm_iter} Train Class {cls} Acc:\t{accs[cls]}')
+            # wandb.log({
+            #     f'training/cls_{cls}_accuracy': accs[cls],
+            #     f'training/cls_{cls}_loss': losses[cls]
+            # }, step=rfm_iter)
 
-        acc, loss, corr = eval(sol, K_test, y_te_onehot)
+            K_tests[cls] = get_test_kernel(X_tr, X_te, Ms[cls], args.bandwidth, args.ntk_depth, args.kernel_type)
+
+        acc, loss, per_class_accs, per_class_losses = eval_clfs(sols, K_tests, y_te_onehot, te_cls_labels)
         print(f'Round {rfm_iter} Test MSE:\t{loss}')
         print(f'Round {rfm_iter} Test Acc:\t{acc}')
         print()
@@ -296,9 +287,16 @@ def main():
             'validation/loss': loss
         }, step=rfm_iter)
 
-        M, Mc, per_class_agops = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
-                       args.kernel_type, args.ntk_depth, centers_bsize=-1, centering=True,
-                       agop_power=args.agop_power, agip_power=args.agip_power)
+        for cls in range(args.prime):
+            wandb.log({
+                f'per_class_val_acc/cls_{cls}_accuracy': per_class_accs[cls],
+                f'per_class_val_loss/cls_{cls}_loss': per_class_losses[cls]
+            }, step=rfm_iter)
+
+        Ms = update_clfs(X_tr, Ms, sols, K_trains, dists, args)
+        # M, Mc, per_class_agops = update(X_tr, X_tr, args.bandwidth, M, sol, K_train, dist, \
+        #                args.kernel_type, args.ntk_depth, centers_bsize=-1, centering=True,
+        #                agop_power=args.agop_power, agip_power=args.agip_power)
         #
         # if args.use_ema:
         #     # use exponential moving average
@@ -316,57 +314,56 @@ def main():
         #     M = torch.mean(torch.stack(Ms), dim=0)
         #     Mc = torch.mean(torch.stack(Mcs), dim=0)
 
-        with torch.no_grad():
-            wandb.log({
-                'training/agop_tr': torch.trace(M),
-                'training/agip_tr': torch.trace(Mc)
-            }, step=rfm_iter)
+        # with torch.no_grad():
+        #     wandb.log({
+        #         'training/agop_tr': torch.trace(M),
+        #         'training/agip_tr': torch.trace(Mc)
+        #     }, step=rfm_iter)
 
-        # if (rfm_iter < 31) or \
-        if (rfm_iter < 100 and rfm_iter % 25 == 0) or \
+        if (rfm_iter < 31) or \
+            (rfm_iter < 100 and rfm_iter % 25 == 0) or \
             (rfm_iter < 500 and rfm_iter % 50 == 0):
 
-            if args.save_agops:
-                os.makedirs(os.path.join(out_dir, f'iter_{rfm_iter}'), exist_ok=True)
-                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
-                np.save(os.path.join(out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
-
-                subdir = os.path.join(out_dir, f'iter_{rfm_iter}', 'per_class_agops')
-                os.makedirs(subdir, exist_ok=True)
-                for cls_idx in range(len(per_class_agops)):
-                    np.save(os.path.join(subdir, f'M_cls_{cls_idx}.npy'), per_class_agops[cls_idx].numpy())
+            # if args.save_agops:
+            #     os.makedirs(os.path.join(out_dir, f'iter_{rfm_iter}'), exist_ok=True)
+            #     np.save(os.path.join(out_dir, f'iter_{rfm_iter}/M.npy'), M.numpy())
+            #     np.save(os.path.join(out_dir, f'iter_{rfm_iter}/Mc.npy'), Mc.numpy())
+            #
+            #     subdir = os.path.join(out_dir, f'iter_{rfm_iter}', 'per_class_agops')
+            #     os.makedirs(subdir, exist_ok=True)
+            #     for cls_idx in range(len(per_class_agops)):
+            #         np.save(os.path.join(subdir, f'M_cls_{cls_idx}.npy'), per_class_agops[cls_idx].numpy())
 
             # if using WANDB we will log images of M, Mc and their spectra
             if not args.wandb_offline:
-                # viz_umap_embeddings(X_tr, X_te, M, args.prime, rfm_iter)
-
-                plt.clf()
-                plt.imshow(M)
-                plt.colorbar()
-                img = wandb.Image(
-                    plt,
-                    caption=f'M'
-                )
-                wandb.log({'M': img}, step=rfm_iter)
-
-                plt.clf()
-                plt.imshow(M - torch.diag(torch.diag(M)))
-                plt.colorbar()
-                img = wandb.Image(
-                    plt,
-                    caption=f'M_no_diag'
-                )
-                wandb.log({'M_no_diag': img}, step=rfm_iter)
-
-                for cls_idx in range(len(per_class_agops)):
+                for cls in Ms.keys():
                     plt.clf()
-                    plt.imshow(per_class_agops[cls_idx] - torch.diag(torch.diag(per_class_agops[cls_idx])))
+                    plt.imshow(Ms[cls])
                     plt.colorbar()
                     img = wandb.Image(
                         plt,
-                        caption=f'cls_{cls_idx} M_no_diag'
+                        caption=f'M_{cls}'
                     )
-                    wandb.log({f'per_class/{cls_idx}_M_no_diag': img}, step=rfm_iter)
+                    wandb.log({f'M/M_{cls}': img}, step=rfm_iter)
+
+                    plt.clf()
+                    plt.imshow(Ms[cls] - torch.diag(torch.diag(Ms[cls])))
+                    plt.colorbar()
+                    img = wandb.Image(
+                        plt,
+                        caption=f'M_{cls}_no_diag'
+                    )
+                    wandb.log({f'M_no_diag/M_{cls}_no_diag': img}, step=rfm_iter)
+
+                # for cls_idx in range(len(per_class_agops)):
+                #     plt.clf()
+                #     plt.imshow(per_class_agops[cls_idx] - torch.diag(torch.diag(per_class_agops[cls_idx])))
+                #     plt.colorbar()
+                #     img = wandb.Image(
+                #         plt,
+                #         caption=f'cls_{cls_idx} M_no_diag'
+                #     )
+                #     wandb.log({f'per_class/{cls_idx}_M_no_diag': img}, step=rfm_iter)
 
                 # plt.clf()
                 # plt.imshow(Mc)

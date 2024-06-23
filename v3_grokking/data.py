@@ -112,6 +112,171 @@ def operation_mod_p_data(operation: str, p: int):
 
     return inputs, labels
 
+def operation_mod_p_data_binarized(operation: str, p: int, training_fraction):
+    """
+    x◦y (mod p) for 0 <= x < p, 1 <= y < p if operation in DIVISION_MODULO_OPERATIONS
+    x◦y (mod p) for 0 <= x, y < p otherwise
+    """
+    x = torch.arange(0, p)
+    y = torch.arange(0 if not operation in DIVISION_MODULO_OPERATIONS else 1, p)
+    x, y = torch.cartesian_prod(x, y).T
+
+    # eq = torch.ones_like(x) * eq_token
+    # op = torch.ones_like(x) * op_token
+
+    x, y, z = ALL_OPERATIONS[operation](x, y, p)
+    results = z.remainder(p)
+
+    inputs = torch.stack([x, y], dim=1)
+    labels = results
+
+    X_tr, y_tr, X_te, y_te = make_data_splits(inputs, labels, training_fraction)
+    cls_labels = {}
+    te_cls_labels = {}
+    for i in range(p):
+        cls_idx = torch.where(y_tr == i)
+        not_cls_idx = torch.where(y_tr != i)
+        cls_y = y_tr.clone()
+        cls_y[cls_idx] = 1
+        cls_y[not_cls_idx] = -1
+        cls_labels[i] = cls_y
+        # cls_labels[i] = F.one_hot(cls_y, 2).double()
+
+        cls_idx = torch.where(y_te == i)
+        not_cls_idx = torch.where(y_te != i)
+        cls_y = y_te.clone()
+        cls_y[cls_idx] = 1
+        cls_y[not_cls_idx] = -1
+        te_cls_labels[i] = cls_y
+
+    X_tr = F.one_hot(X_tr, p).view(-1, 2*p).double()
+    y_tr = F.one_hot(y_tr, p).double()
+    X_te = F.one_hot(X_te, p).view(-1, 2*p).double()
+    y_te = F.one_hot(y_te, p).double()
+
+    return X_tr, cls_labels, y_tr, X_te, te_cls_labels, y_te
+
+def multitask_op_mod_p_data(op1, op2, p, train_frac_per_op):
+    inp1, lab1 = operation_mod_p_data(op1, p)
+    X_tr1, y_tr1, X_te1, y_te1 = make_data_splits(inp1, lab1, 0.5)
+    X_tr1 = F.one_hot(X_tr1, p).view(-1, 2*p).double()
+    zeros = torch.zeros((X_tr1.shape[0],1))
+    X_tr1 = torch.hstack((X_tr1, zeros))
+    y_tr1 = F.one_hot(y_tr1, p).double()
+    y_tr1 = torch.hstack((y_tr1, torch.zeros((y_tr1.shape[0], 2)).double()))
+
+    n_train2 = 500
+    tr_inp2 = torch.randint(0, 2, (n_train2, 2*p))
+    y_tr2 = torch.logical_xor(tr_inp2[:, :p], tr_inp2[:, p:]).double()
+    ones = torch.ones((tr_inp2.shape[0],1))
+    X_tr2 = torch.hstack((tr_inp2, ones))
+    even_parity = torch.sum(y_tr2, axis=-1) % 2 == 0
+    y_tr2 = (~even_parity).long()
+    y_tr2 = torch.hstack((torch.zeros(y_tr2.shape[0], p).double(), F.one_hot(y_tr2, 2)))
+
+    X_tr = torch.vstack((X_tr1, X_tr2))
+    y_tr = torch.vstack((y_tr1, y_tr2))
+
+
+    X_te1 = F.one_hot(X_te1, p).view(-1, 2*p).double()
+    zeros = torch.zeros((X_te1.shape[0],1))
+    X_te1 = torch.hstack((X_te1, zeros))
+    y_te1 = F.one_hot(y_te1, p).double()
+    y_te1 = torch.hstack((y_te1, torch.zeros((y_te1.shape[0], 2)).double()))
+
+    n_test2 = 500
+    te_inp2 = torch.randint(0, 2, (n_test2, 2*p))
+    y_te2 = torch.logical_xor(te_inp2[:, :p], te_inp2[:, p:]).double()
+    ones = torch.ones((te_inp2.shape[0],1))
+    X_te2 = torch.hstack((te_inp2, ones))
+    even_parity = torch.sum(y_te2, axis=-1) % 2 == 0
+    y_te2 = (~even_parity).long()
+    y_te2 = torch.hstack((torch.zeros(y_te2.shape[0], p).double(), F.one_hot(y_te2, 2)))
+
+    return X_tr, y_tr, X_te1, y_te1, X_te2, y_te2
+
+'''
+multitask with XOR using same one-hot encoded samples
+'''
+# def multitask_op_mod_p_data(op1, op2, p, train_frac_per_op):
+#     inp1, lab1 = operation_mod_p_data(op1, p)
+#     inp2 = inp1.clone()
+#     lab2_dig1 = (inp1[:,0] % 2 == 0).long()
+#     lab2_dig2 = (inp1[:,1] % 2 == 0).long()
+#     lab2 = torch.logical_xor(lab2_dig1, lab2_dig2).long()
+#
+#     X_tr1, y_tr1, X_te1, y_te1, perm = make_data_splits_with_perm(inp1, lab1, 0.5)
+#     X_tr2, y_tr2, X_te2, y_te2, _ = make_data_splits_with_perm(inp2, lab2, 0.5, perm=perm)
+#     X_tr1 = F.one_hot(X_tr1, p).view(-1, 2*p).double()
+#     X_tr2 = F.one_hot(X_tr2, p).view(-1, 2*p).double()
+#     zeros = torch.zeros((X_tr1.shape[0],1))
+#     ones = torch.ones((X_tr2.shape[0],1))
+#
+#     X_tr1 = torch.hstack((X_tr1, zeros))
+#     X_tr2 = torch.hstack((X_tr2, ones))
+#     X_tr = torch.vstack((X_tr1, X_tr2))
+#
+#     y_tr1 = torch.hstack((F.one_hot(y_tr1, p).double(), torch.zeros((y_tr1.shape[0], 2)).double()))
+#     y_tr2 = torch.hstack((torch.zeros(y_tr2.shape[0], p).double(), F.one_hot(y_tr2, 2).double()))
+#     y_tr = torch.vstack((y_tr1, y_tr2))
+#
+#     X_te1 = F.one_hot(X_te1, p).view(-1, 2*p).double()
+#     X_te2 = F.one_hot(X_te2, p).view(-1, 2*p).double()
+#     zeros = torch.zeros((X_te1.shape[0],1))
+#     ones = torch.ones((X_te2.shape[0],1))
+#     X_te1 = torch.hstack((X_te1, zeros))
+#     X_te2 = torch.hstack((X_te2, ones))
+#     y_te1 = torch.hstack((F.one_hot(y_te1, p).double(), torch.zeros((y_te1.shape[0], 2)).double()))
+#     y_te2 = torch.hstack((torch.zeros(y_te2.shape[0], p).double(), F.one_hot(y_te2, 2).double()))
+#
+#     X_te = torch.vstack((X_te1, X_te2))
+#     y_te = torch.vstack((y_te1, y_te2))
+#
+#     return X_tr, y_tr, X_te1, y_te1, X_te2, y_te2
+
+# def multitask_op_mod_p_data(op1, op2, p, train_frac_per_op):
+#     inp1, lab1 = operation_mod_p_data(op1, p)
+#     inp2, lab2 = operation_mod_p_data(op2, p)
+#     X_tr1, y_tr1, X_te1, y_te1, perm = make_data_splits_with_perm(inp1, lab1, train_frac_per_op)
+#     X_tr2, y_tr2, X_te2, y_te2, _ = make_data_splits_with_perm(inp2, lab2, train_frac_per_op, perm=perm)
+#     X_tr1 = F.one_hot(X_tr1, p).view(-1, 2*p).double()
+#     X_tr2 = F.one_hot(X_tr2, p).view(-1, 2*p).double()
+#     ones = torch.ones((X_tr2.shape[0],))
+#     zeros = torch.zeros((X_tr1.shape[0],))
+#
+#     X_tr1 = torch.hstack((X_tr1, zeros.unsqueeze(-1)))
+#     X_tr2 = torch.hstack((X_tr2, ones.unsqueeze(-1)))
+#     X_tr = torch.vstack((X_tr1, X_tr2))
+#
+#     y_tr1 = F.one_hot(y_tr1, p).double()
+#     y_tr2 = F.one_hot(y_tr2, p).double()
+#     y_tr = torch.vstack((y_tr1, y_tr2))
+#
+#     X_te1 = F.one_hot(X_te1, p).view(-1, 2*p).double()
+#     X_te2 = F.one_hot(X_te2, p).view(-1, 2*p).double()
+#     zeros = torch.zeros((X_te1.shape[0],))
+#     ones = torch.ones((X_te2.shape[0],))
+#     X_te1 = torch.hstack((X_te1, zeros.unsqueeze(-1)))
+#     X_te2 = torch.hstack((X_te2, ones.unsqueeze(-1)))
+#     y_te1 = F.one_hot(y_te1, p).double()
+#     y_te2 = F.one_hot(y_te2, p).double()
+#
+#     return X_tr, y_tr, X_te1, y_te1, X_te2, y_te2
+
+def make_data_splits_with_perm(inputs, labels, training_fraction, perm=None):
+    train_size = int(training_fraction * inputs.shape[0])
+    val_size = inputs.shape[0] - train_size
+    # X_tr, X_te, y_tr, y_te = train_test_split(inputs, labels, test_size=val_size, stratify=labels)
+    # return X_tr, y_tr, X_te, y_te
+
+    if perm is None:
+        perm = torch.randperm(inputs.shape[0])
+
+    train_idx = perm[:train_size]
+    val_idx = perm[train_size:]
+
+    return inputs[train_idx], labels[train_idx], inputs[val_idx], labels[val_idx], perm
+
 def make_data_splits(inputs, labels, training_fraction):
     train_size = int(training_fraction * inputs.shape[0])
     val_size = inputs.shape[0] - train_size

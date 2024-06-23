@@ -75,7 +75,8 @@ def quadratic_M(samples, centers, M):
     # return ((samples @ M) @ centers.T)
 
 def quad_M_update(X, x, sol, P, batch_size=2,
-                   centering=True, diag_only=False):
+                   centering=True, diag_only=False,
+                   return_per_class_agop=False):
     M = 0.
 
     start = time.time()
@@ -129,6 +130,17 @@ def quad_M_update(X, x, sol, P, batch_size=2,
     torch.cuda.empty_cache()
     M /= len(G)
 
+    per_class_agops = []
+    if return_per_class_agop:
+        for i in range(len(batches)):
+            for class_i in range(G.shape[1]):
+                if len(per_class_agops) < G.shape[1]:
+                    per_class_agops.append(batches[i][:,class_i].T @ batches[i][:,class_i])
+                else:
+                    per_class_agops[class_i] += batches[i][:,class_i].T @ batches[i][:,class_i]
+        for class_i in range(G.shape[1]):
+            per_class_agops[class_i] /= len(G)
+            per_class_agops[class_i] = torch.from_numpy(np.real(scipy.linalg.sqrtm(per_class_agops[class_i].numpy())))
 
     if diag_only:
         M = torch.diag(M)
@@ -153,7 +165,7 @@ def quad_M_update(X, x, sol, P, batch_size=2,
     # print(M.max(), M.min(), M.mean())
 
     #print("Time: ", end - start)
-    return torch.from_numpy(M), torch.zeros(c, c)
+    return torch.from_numpy(M), torch.zeros(c, c), per_class_agops
 
 def get_jac_reg(samples, centers, bandwidth, M, \
                 centering=False):

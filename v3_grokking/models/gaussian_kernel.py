@@ -179,7 +179,7 @@ def get_grads(X, sol, L, P, batch_size=2, K=None, centering=False, x=None,
     if return_per_class_agop:
         return torch.from_numpy(M), torch.from_numpy(Mc), per_class_agops
 
-    return torch.from_numpy(M), torch.from_numpy(Mc)
+    return torch.from_numpy(M), torch.from_numpy(Mc), per_class_agops
 
 def gaussian_M_update(samples, centers, bandwidth, M, weights, K=None, \
                       centers_bsize=-1, centering=False, agop_power=0.5,

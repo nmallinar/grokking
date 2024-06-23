@@ -170,14 +170,27 @@ def main():
     # circ = torch.from_numpy(np.load('notebooks/circ2.npy')).double()
 
     # col = torch.randn(proj_dim)
-    col = torch.normal(0, 1, size=(proj_dim,))
-    # col = torch.zeros((proj_dim,))
-    # col[0] = 1.0
-    # col[1] = 1.0
-    # col[-1] = -1.0
-    # col[2] = 1.0
-    # col[3] = 1.0
-    circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
+    # col = torch.normal(0, 1, size=(proj_dim,))
+    # col = torch.from_numpy(np.arange(1, args.prime+1)) - int(args.prime / 2)
+    # col = torch.from_numpy(np.arange(0, args.prime))
+    # # col = torch.zeros((proj_dim,))
+    # # col[0] = 1.0
+    # # col[1] = 1.0
+    # # col[-1] = -1.0
+    # # col[2] = 1.0
+    # # col[3] = 1.0
+    # circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
+    # import ipdb; ipdb.set_trace()
+    circ = np.zeros((args.prime, args.prime))
+    # row = np.arange(0, args.prime)
+    row = torch.normal(0, 2, size=(args.prime,))
+    circ[0] = row
+    for idx in range(1, args.prime):
+        # import ipdb; ipdb.set_trace()
+        circ[idx] = np.roll(circ[idx-1], 1)
+    circ = torch.from_numpy(circ).double()
+    # circ = torch.from_numpy(np.flip(scipy.linalg.circulant(np.arange(args.prime-1, -1, -1)), axis=0).astype(np.int16)).double()
+    print(circ)
 
     '''
     dft = torch.from_numpy(np.fft.fft(np.eye(proj_dim))) / np.sqrt(proj_dim)

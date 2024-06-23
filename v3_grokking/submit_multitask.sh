@@ -18,16 +18,25 @@
 
 #source /projects/bbjr/mallina1/envs/torch_and_jax/bin/activate
 
-for i in $(seq 1 1);
+# for i in $(seq 1 1);
+# for i in 0.01 0.02 0.03 0.04 0.05 0.06 0.07 0.08 0.09 0.1 0.15 0.2 0.225 0.25 0.275 0.3 0.325 0.35 0.4 0.45;
+for i in 0.5;
+# for i in 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6;
 do
-  python train_circulant.py \
-    --out_dir "./" \
+  python train_multitask_kernel.py \
+    --wandb_proj_name "june20_multitask" \
+    --out_dir "./wandb" \
     --operation "x+y" \
-    --prime 61 \
-    --training_fraction 0.25 \
+    --prime 31 \
+    --training_fraction ${i} \
     --kernel_type "gaussian" \
-    --ridge 1e-4 \
+    --iters 500 \
+    --ridge 0.0 \
     --bandwidth 2.5 \
+    --ntk_depth 1 \
+    --agop_sma_size 1 \
+    --agop_power 0.5 \
     --jac_reg_weight 0.0 \
-    --agip_rdx_weight 0.0
+    --agip_rdx_weight 0.0 \
+    --group_key 'test'
 done
