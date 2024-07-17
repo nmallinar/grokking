@@ -23,15 +23,15 @@ source ~/envs/torch_jax2/bin/activate
 for i in 0.5;
 do
   python train_net_simple.py \
-    --wandb_proj_name "june15_nn_agop_alignment" \
+    --wandb_proj_name "july16_agop_decay" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
-    --operation "x/y" \
+    --operation "x+y" \
     --prime 61 \
     --training_fraction ${i} \
     --batch_size 32 \
     --agop_batch_size 4 \
     --device "cuda" \
-    --epochs 251 \
+    --epochs 51 \
     --model "OneLayerFCN" \
     --hidden_width 1024 \
     --init_scale 1.0 \
