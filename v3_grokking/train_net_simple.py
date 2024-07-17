@@ -18,9 +18,9 @@ import agop_utils
 import matplotlib.pyplot as plt
 
 torch.set_default_dtype(torch.float64)
-#torch.manual_seed(3143)
-#random.seed(253)
-#np.random.seed(1145)
+torch.manual_seed(3143)
+random.seed(253)
+np.random.seed(1145)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -111,8 +111,8 @@ def main():
 
             optimizer.zero_grad()
             output = model(inputs, act=args.act_fn)
-            agop, _ = agop_utils.calc_full_agop(model, agop_loader, args, calc_per_class_agops=False,
-                                                              detach=False)
+            #agop, _ = agop_utils.calc_full_agop(model, agop_loader, args, calc_per_class_agops=False,
+                                                              #detach=False)
 
 
             count = (output.argmax(-1) == labels.argmax(-1)).sum()
@@ -120,8 +120,8 @@ def main():
 
             loss = criterion(output, labels)
             base_loss = loss.clone()
-            loss += args.agop_decay * torch.trace(agop)
-            loss += args.agop_decay * torch.linalg.norm(model.out.weight.data)
+            #loss += args.agop_decay * torch.trace(agop)
+            #loss += args.agop_decay * torch.linalg.norm(model.out.weight.data)
 
             weight_norm_fc1 = torch.linalg.norm(model.fc1.weight.data).detach()
             weight_norm_out = torch.linalg.norm(model.out.weight.data).detach()
@@ -133,7 +133,7 @@ def main():
                 'training/accuracy': acc,
                 'training/loss': loss,
                 'training/mse_loss': base_loss,
-                'training/tr_agop': torch.trace(agop.detach()),
+                #'training/tr_agop': torch.trace(agop.detach()),
                 'training/w_norm_fc1': weight_norm_fc1,
                 'training/w_norm_out': weight_norm_out,
                 'epoch': epoch
