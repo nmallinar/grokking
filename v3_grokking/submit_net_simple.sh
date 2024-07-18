@@ -20,10 +20,10 @@
 source ~/envs/torch_jax2/bin/activate
 
 #for i in 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6;
-for i in 0.5;
+for i in 0.175;
 do
   python train_net_simple.py \
-    --wandb_proj_name "july16_agop_decay" \
+    --wandb_proj_name "july17_nn_random_circulant" \
     --out_dir "/scratch/bbjr/mallina1/grokking_output" \
     --operation "x+y" \
     --prime 61 \
@@ -31,7 +31,7 @@ do
     --batch_size 32 \
     --agop_batch_size 4 \
     --device "cuda" \
-    --epochs 51 \
+    --epochs 10000 \
     --model "OneLayerFCN" \
     --hidden_width 1024 \
     --init_scale 1.0 \
@@ -40,5 +40,5 @@ do
     --weight_decay 1.0 \
     --agop_decay 0.0 \
     --momentum 0.0 \
-    --group_key 'test'
+    --group_key 'test' 
 done

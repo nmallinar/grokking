@@ -39,6 +39,27 @@ class OneLayerFCN(torch.nn.Module):
     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.fc1.weight)
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
     nn.init.uniform_(self.fc1.weight, -init_scale*bound, init_scale*bound)
+    #self.fc1.requires_grad_(False)
+    
+    '''
+    p = int(self.fc1.weight.shape[1] / 2)
+    M = torch.zeros((2*p, 2*p))
+    #col = torch.rand(p)
+    col = torch.randn(p)
+    circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
+    M[:p,p:] = circ
+    M[p:,:p] = circ.T
+    M[:p, :p] = torch.eye(p) - 1./p * torch.ones(p, p)
+    M[p:,p:] = M[:p, :p]
+    #M = torch.from_numpy(np.real(scipy.linalg.sqrtm(M)))
+
+    dist = torch.distributions.multivariate_normal.MultivariateNormal(
+        torch.zeros(self.fc1.weight.shape[1]),
+        M
+    )
+    self.fc1.weight.data = dist.sample_n(self.fc1.weight.shape[0])
+    self.fc1.requires_grad_(False)
+    '''
 
     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.out.weight)
     bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0

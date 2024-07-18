@@ -101,6 +101,20 @@ def main():
     )
     criterion = torch.nn.MSELoss()
 
+    p = args.prime
+    M = torch.zeros((2*p, 2*p))
+    col = torch.rand(p)
+    #col = torch.randn(p)
+    circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
+    M[:p,p:] = circ
+    M[p:,:p] = circ.T
+    M[:p, :p] = torch.eye(p) - 1./p * torch.ones(p, p)
+    M[p:,p:] = M[:p, :p]
+    M = torch.from_numpy(np.real(scipy.linalg.sqrtm(M)))
+    
+    #M = torch.eye(2*args.prime)
+    M = M.to('cuda')
+
     global_step = 0
     for epoch in tqdm(range(args.epochs)):
 
@@ -109,10 +123,12 @@ def main():
             batch = tuple(t.to(args.device) for t in batch)
             inputs, labels = batch
 
+            inputs = inputs @ M
             optimizer.zero_grad()
             output = model(inputs, act=args.act_fn)
-            agop, _ = agop_utils.calc_full_agop(model, agop_loader, args, calc_per_class_agops=False,
-                                                              detach=False)
+            #agop, _ = agop_utils.calc_full_agop(model, agop_loader, args, calc_per_class_agops=False,
+            #                                                  detach=False)
+            #agop = agop_utils.calc_full_agops_exact(model, agop_loader, args, detach=False)
 
 
             count = (output.argmax(-1) == labels.argmax(-1)).sum()
@@ -120,8 +136,9 @@ def main():
 
             loss = criterion(output, labels)
             base_loss = loss.clone()
-            loss += args.agop_decay * torch.trace(agop)
-            loss += args.agop_decay * torch.linalg.norm(model.out.weight.data)
+            #loss += args.agop_decay * torch.trace(agop)
+            #loss += args.agop_decay * torch.trace(model.out.weight.t() @ model.out.weight)
+            #loss += args.agop_decay * torch.linalg.norm(model.out.weight.data)
 
             weight_norm_fc1 = torch.linalg.norm(model.fc1.weight.data).detach()
             weight_norm_out = torch.linalg.norm(model.out.weight.data).detach()
@@ -149,6 +166,7 @@ def main():
             for idx, batch in enumerate(test_loader):
                 batch = tuple(t.to(args.device) for t in batch)
                 inputs, labels = batch
+                inputs = inputs @ M
 
                 output = model(inputs, act=args.act_fn)
 
@@ -193,7 +211,7 @@ def main():
                 embeddings = mapper.fit_transform(U.T)
                 utils.scatter_umap_embeddings(embeddings, None, wandb, 'UMAP, left sing vecs U.T', 'umap/U.T', global_step)
 
-        if epoch % 5 == 0:
+        if epoch % 5 == -1:
             ep_out_dir = os.path.join(out_dir, f'epoch_{epoch}')
             os.makedirs(ep_out_dir, exist_ok=True)
 
