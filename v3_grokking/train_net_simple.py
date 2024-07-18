@@ -103,15 +103,27 @@ def main():
 
     p = args.prime
     M = torch.zeros((2*p, 2*p))
-    col = torch.rand(p)
-    #col = torch.randn(p)
-    circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
+
+    if args.operation == 'x*y':
+        # multiplication:
+        circ = utils.gen_random_mult_circulant(p)
+
+        M[1:p, 1:p] = torch.eye(p-1) - 1./(p-1) * torch.ones(p-1, p-1)
+        M[p+1:, p+1:] = M[1:p, 1:p]
+    elif args.operation == 'x+y':
+        # addition:
+        col = torch.rand(p)
+        circ = torch.from_numpy(scipy.linalg.circulant(col.numpy()))
+
+        M[:p, :p] = torch.eye(p) - 1./p * torch.ones(p, p)
+        M[p:, p:] = M[:p, :p]
+    else:
+        raise
+
     M[:p,p:] = circ
     M[p:,:p] = circ.T
-    M[:p, :p] = torch.eye(p) - 1./p * torch.ones(p, p)
-    M[p:,p:] = M[:p, :p]
     M = torch.from_numpy(np.real(scipy.linalg.sqrtm(M)))
-    
+
     #M = torch.eye(2*args.prime)
     M = M.to('cuda')
 
